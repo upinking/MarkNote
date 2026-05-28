@@ -1,0 +1,212 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>MarkNote</title>
+    <link rel="stylesheet" href="./styles.css" />
+    <link rel="stylesheet" href="./vendor/wysiwyg-editor.css" />
+  </head>
+  <body>
+    <div class="appShell">
+      <header class="toolbar">
+        <div class="brand" aria-label="MarkNote">
+          <img class="brandMark" src="../build/icon.png" alt="" aria-hidden="true" />
+          <span>MarkNote</span>
+        </div>
+
+        <div class="toolbarGroup">
+          <button class="toolButton" id="newButton" data-i18n-title="newTitle" title="新建笔记">
+            <span class="icon">✦</span>
+            <span data-i18n="new">New</span>
+          </button>
+          <button class="toolButton" id="openButton" data-i18n-title="openTitle" title="打开 Markdown 文件">
+            <span class="icon">⌘</span>
+            <span data-i18n="open">Open</span>
+          </button>
+          <button class="toolButton primary" id="saveButton" data-i18n-title="saveTitle" title="保存 Markdown 文件">
+            <span class="icon">✓</span>
+            <span data-i18n="save">Save</span>
+          </button>
+          <button class="toolButton helpCloseButton" id="closeHelpButton" data-i18n-title="closeHelpTitle" title="关闭说明" hidden>
+            <span class="icon">×</span>
+            <span data-i18n="closeHelp">Close guide</span>
+          </button>
+        </div>
+
+        <div class="fileSwitcher" id="fileSwitcher">
+          <button class="currentFileButton" id="currentFileButton" data-i18n-title="currentFileTitle" title="当前文件">
+            <span class="fileRule" aria-hidden="true"></span>
+            <span id="fileName">Untitled.md</span>
+            <span class="fileChevron">⌄</span>
+            <strong id="dirtyFlag" hidden>edited</strong>
+            <span class="fileRule" aria-hidden="true"></span>
+          </button>
+          <div class="recentPanel" id="recentPanel" hidden>
+            <div class="recentHeader" data-i18n="recentFiles">Recent files</div>
+            <div class="recentList" id="recentList"></div>
+          </div>
+          <div class="fileContextMenu" id="fileContextMenu" hidden>
+            <button type="button" id="saveAsButton" data-i18n="saveAs">Save as</button>
+            <button type="button" id="exportPdfButton" data-i18n="exportPdf">Export PDF</button>
+            <button type="button" id="showFileButton" data-i18n="showInFolder">Show in folder</button>
+            <button type="button" id="renameFileButton" data-i18n="rename">Rename</button>
+            <button type="button" id="deleteFileButton" class="danger" data-i18n="deleteFile">Delete file</button>
+          </div>
+        </div>
+
+        <div class="toolbarSpacer"></div>
+
+        <div class="toolbarGroup">
+          <button class="iconToggle" id="aiToggle" data-i18n-title="aiTitle" title="打开 AI 助手">
+            <span class="icon">✧</span>
+            <span data-i18n="ai">AI</span>
+          </button>
+          <button class="iconToggle active" id="viewModeToggle" data-i18n-title="viewModeTitle" title="切换视图模式">
+            <span class="icon" id="viewModeIcon">◐</span>
+            <span id="viewModeLabel">Preview</span>
+          </button>
+          <button class="iconToggle" id="themeToggle" data-i18n-title="themeTitle" title="切换主题">
+            <span class="icon">☾</span>
+            <span id="themeLabel">Dark</span>
+          </button>
+          <button class="iconToggle" id="settingsToggle" data-i18n-title="settingsTitle" title="设置">
+            <span class="icon">⚙</span>
+            <span data-i18n="settings">Settings</span>
+          </button>
+        </div>
+
+        <div class="settingsPanel" id="settingsPanel" hidden>
+          <div class="settingsHeader" data-i18n="settings">Settings</div>
+          <label class="settingRow" for="languageSelect">
+            <span data-i18n="language">Language</span>
+            <select id="languageSelect">
+              <option value="zh">中文</option>
+              <option value="en">English</option>
+            </select>
+          </label>
+          <label class="settingRow" for="themeSelect">
+            <span data-i18n="theme">Theme</span>
+            <select id="themeSelect">
+              <option value="light" data-i18n="themeLight">Light</option>
+              <option value="dark" data-i18n="themeDark">Dark</option>
+              <option value="paper" data-i18n="themePaper">Paper</option>
+              <option value="forest" data-i18n="themeForest">Forest</option>
+              <option value="ocean" data-i18n="themeOcean">Ocean</option>
+              <option value="rose" data-i18n="themeRose">Rose</option>
+            </select>
+          </label>
+          <label class="settingSwitch">
+            <span data-i18n="lineWrap">Line wrap</span>
+            <input type="checkbox" id="wrapSetting" />
+          </label>
+          <label class="settingSwitch">
+            <span data-i18n="taskBracketCompat">Task bracket compatibility</span>
+            <input type="checkbox" id="taskBracketSetting" />
+          </label>
+          <div class="settingsSectionTitle" data-i18n="aiSettings">AI 设置</div>
+          <label class="settingRow" for="aiProviderSelect">
+            <span data-i18n="aiProvider">AI Provider</span>
+            <select id="aiProviderSelect">
+              <option value="openai">OpenAI</option>
+              <option value="deepseek">DeepSeek</option>
+            </select>
+          </label>
+          <label class="settingRow" for="aiModelInput">
+            <span data-i18n="aiModel">Model</span>
+            <input class="settingInput" id="aiModelInput" type="text" autocomplete="off" />
+          </label>
+          <label class="settingRow" for="aiApiKeyInput">
+            <span data-i18n="aiApiKey">API Key</span>
+            <input class="settingInput" id="aiApiKeyInput" type="password" autocomplete="off" />
+          </label>
+          <button class="settingAction" id="helpButton" data-i18n-title="helpTitle" title="打开使用说明">
+            <span data-i18n="help">使用说明</span>
+            <span class="settingActionIcon">↗</span>
+          </button>
+        </div>
+      </header>
+
+      <main class="workspace" id="workspace">
+        <aside class="outlinePane">
+          <div class="paneHeader">
+            <span data-i18n="outline">Outline</span>
+            <small id="headingCount">0 headings</small>
+          </div>
+          <nav class="outlineList" id="outlineList" aria-label="文章目录"></nav>
+        </aside>
+
+        <section class="editorPane">
+          <div id="wysiwygEditor" class="wysiwygEditor" aria-label="所见即所得编辑区"></div>
+          <textarea id="editor" class="markdownEditor" spellcheck="false" aria-label="Markdown 编辑区"></textarea>
+        </section>
+
+        <section class="previewPane" id="previewPane">
+          <article class="markdownPreview" id="preview"></article>
+        </section>
+
+        <aside class="aiPane" id="aiPane" aria-label="AI Agent" hidden>
+          <header class="aiHeader">
+            <div>
+              <strong data-i18n="aiAgent">AI Agent</strong>
+              <span id="aiModelBadge">OpenAI</span>
+            </div>
+            <button class="aiCloseButton" id="aiCloseButton" type="button" data-i18n-title="aiCloseTitle" title="关闭 AI">×</button>
+          </header>
+          <div class="aiQuickActions">
+            <button type="button" data-ai-prompt="summary" data-i18n="aiQuickSummary">总结</button>
+            <button type="button" data-ai-prompt="polish" data-i18n="aiQuickPolish">润色</button>
+            <button type="button" data-ai-prompt="organize" data-i18n="aiQuickOrganize">整理结构</button>
+            <button type="button" data-ai-prompt="continue" data-i18n="aiQuickContinue">续写</button>
+          </div>
+          <div class="aiMessages" id="aiMessages"></div>
+          <form class="aiComposer" id="aiForm">
+            <textarea id="aiInput" rows="3" data-i18n-placeholder="aiPlaceholder" placeholder="让 AI 帮你总结、润色或整理这篇笔记"></textarea>
+            <button type="submit" id="aiSendButton" data-i18n="aiSend">发送</button>
+          </form>
+        </aside>
+      </main>
+
+      <footer class="statusBar">
+        <span id="lineCount">0 lines</span>
+        <span id="wordCount">0 words</span>
+        <span id="charCount">0 characters</span>
+        <span id="saveStatus">Saved</span>
+        <span class="currentHeading" id="currentHeading">No heading selected</span>
+      </footer>
+
+      <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+      <div class="editorContextMenu" id="editorContextMenu" hidden>
+        <button type="button" data-editor-action="copy" data-i18n="copySelection">Copy</button>
+        <button type="button" data-editor-action="cut" data-i18n="cutSelection">Cut</button>
+        <button type="button" data-editor-action="paste" data-i18n="paste">Paste</button>
+        <div class="contextDivider" data-selection-only></div>
+        <button type="button" data-editor-action="bold" data-selection-only data-i18n="bold">Bold</button>
+        <button type="button" data-editor-action="italic" data-selection-only data-i18n="italic">Italic</button>
+        <button type="button" data-editor-action="code" data-selection-only data-i18n="inlineCode">Inline code</button>
+        <div class="contextDivider" data-selection-only></div>
+        <button type="button" data-editor-action="ai-polish" data-selection-only data-i18n="aiPolishSelection">AI polish selection</button>
+        <button type="button" data-editor-action="ai-summary" data-selection-only data-i18n="aiSummarySelection">AI summarize selection</button>
+        <button type="button" data-editor-action="ai-search" data-selection-only data-i18n="aiSearchSelection">AI search selection</button>
+      </div>
+    </div>
+
+    <div class="modalBackdrop" id="renameDialog" hidden>
+      <form class="renameDialog" id="renameForm">
+        <h2 data-i18n="renameTitle">Rename file</h2>
+        <label for="renameInput" data-i18n="renameHint">New file name</label>
+        <input id="renameInput" type="text" autocomplete="off" />
+        <div class="dialogActions">
+          <button type="button" class="dialogButton" id="renameCancelButton" data-i18n="cancel">Cancel</button>
+          <button type="submit" class="dialogButton primary" data-i18n="renameConfirm">Rename</button>
+        </div>
+      </form>
+    </div>
+
+    <input id="browserFileInput" type="file" accept=".md,.markdown,text/markdown,text/plain" hidden />
+    <script src="./vendor/marked.umd.js"></script>
+    <script src="./vendor/purify.min.js"></script>
+    <script src="./vendor/wysiwyg-editor.js"></script>
+    <script src="./renderer.js"></script>
+  </body>
+</html>
