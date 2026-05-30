@@ -11,6 +11,38 @@ contextBridge.exposeInMainWorld("marknote", {
   exportPdf: (payload) => ipcRenderer.invoke("file:export-pdf", payload),
   openReadme: () => ipcRenderer.invoke("file:readme"),
   askAi: (payload) => ipcRenderer.invoke("ai:complete", payload),
+  askAiStream: (payload, handlers = {}) => {
+    const requestId = `ai-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+    const onDelta = (_event, message) => {
+      if (message?.requestId === requestId) {
+        handlers.onDelta?.(message.text || "");
+      }
+    };
+    const onDone = (_event, message) => {
+      if (message?.requestId !== requestId) return;
+      cleanup();
+      handlers.onDone?.(message.result);
+    };
+    const onError = (_event, message) => {
+      if (message?.requestId !== requestId) return;
+      cleanup();
+      handlers.onError?.(message.error || "AI request failed");
+    };
+    const cleanup = () => {
+      ipcRenderer.removeListener("ai:stream-delta", onDelta);
+      ipcRenderer.removeListener("ai:stream-done", onDone);
+      ipcRenderer.removeListener("ai:stream-error", onError);
+    };
+
+    ipcRenderer.on("ai:stream-delta", onDelta);
+    ipcRenderer.on("ai:stream-done", onDone);
+    ipcRenderer.on("ai:stream-error", onError);
+    ipcRenderer.invoke("ai:stream", { requestId, payload }).catch((error) => {
+      cleanup();
+      handlers.onError?.(error?.message || "AI request failed");
+    });
+    return { requestId, cancel: cleanup };
+  },
   confirmUnsavedChanges: (payload) => ipcRenderer.invoke("dialog:confirm-unsaved", payload),
   confirmDraftRestore: (payload) => ipcRenderer.invoke("dialog:confirm-draft-restore", payload),
   confirmDeleteFile: (payload) => ipcRenderer.invoke("dialog:confirm-delete-file", payload),

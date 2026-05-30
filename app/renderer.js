@@ -49,6 +49,7 @@ const translations = {
     aiSettings: "AI 设置",
     aiProvider: "服务",
     aiModel: "模型",
+    aiBaseUrl: "Base URL",
     aiApiKey: "API Key",
     aiQuickSummary: "总结",
     aiQuickPolish: "润色",
@@ -176,6 +177,7 @@ const translations = {
     aiSettings: "AI settings",
     aiProvider: "Provider",
     aiModel: "Model",
+    aiBaseUrl: "Base URL",
     aiApiKey: "API Key",
     aiQuickSummary: "Summarize",
     aiQuickPolish: "Polish",
@@ -278,7 +280,11 @@ const defaultAiSettings = {
   provider: "openai",
   models: {
     openai: "gpt-4.1-mini",
-    deepseek: "deepseek-chat"
+    deepseek: "deepseek-v4-flash"
+  },
+  baseUrls: {
+    openai: "https://api.openai.com/v1",
+    deepseek: "https://api.deepseek.com"
   },
   apiKeys: {
     openai: "",
@@ -366,6 +372,7 @@ const elements = {
   aiSendButton: document.querySelector("#aiSendButton"),
   aiProviderSelect: document.querySelector("#aiProviderSelect"),
   aiModelInput: document.querySelector("#aiModelInput"),
+  aiBaseUrlInput: document.querySelector("#aiBaseUrlInput"),
   aiApiKeyInput: document.querySelector("#aiApiKeyInput"),
   aiModelBadge: document.querySelector("#aiModelBadge"),
   settingsToggle: document.querySelector("#settingsToggle"),
@@ -782,6 +789,10 @@ function loadAiSettings() {
         ...defaultAiSettings.models,
         ...(saved.models || {})
       },
+      baseUrls: {
+        ...defaultAiSettings.baseUrls,
+        ...(saved.baseUrls || {})
+      },
       apiKeys: {
         ...defaultAiSettings.apiKeys,
         ...(saved.apiKeys || {})
@@ -791,6 +802,7 @@ function loadAiSettings() {
     return {
       provider: defaultAiSettings.provider,
       models: { ...defaultAiSettings.models },
+      baseUrls: { ...defaultAiSettings.baseUrls },
       apiKeys: { ...defaultAiSettings.apiKeys }
     };
   }
@@ -818,6 +830,11 @@ function currentAiKey() {
   return state.aiSettings.apiKeys[currentAiProvider()] || "";
 }
 
+function currentAiBaseUrl() {
+  const provider = currentAiProvider();
+  return state.aiSettings.baseUrls?.[provider] || defaultAiSettings.baseUrls[provider];
+}
+
 function setAiProvider(provider) {
   state.aiSettings.provider = provider === "deepseek" ? "deepseek" : "openai";
   saveAiSettings();
@@ -833,6 +850,17 @@ function setAiModel(model) {
 
 function setAiKey(apiKey) {
   state.aiSettings.apiKeys[currentAiProvider()] = apiKey.trim();
+  saveAiSettings();
+  renderAiPanel();
+}
+
+function setAiBaseUrl(baseUrl) {
+  const provider = currentAiProvider();
+  state.aiSettings.baseUrls = {
+    ...defaultAiSettings.baseUrls,
+    ...(state.aiSettings.baseUrls || {}),
+    [provider]: baseUrl.trim() || defaultAiSettings.baseUrls[provider]
+  };
   saveAiSettings();
   renderAiPanel();
 }
@@ -898,10 +926,7 @@ async function toggleAiPanel() {
 }
 
 function markdownPreviewHtml(markdown) {
-  const html = marked.parse(markdown || "", { breaks: true, gfm: true });
-  return DOMPurify.sanitize(html, {
-    ADD_ATTR: ["target", "rel", "checked", "disabled", "type"]
-  });
+  return sanitizeMarkdownHtml(markdownToHtmlWithMath(markdown || ""));
 }
 
 function renderAiPanel() {
@@ -911,6 +936,8 @@ function renderAiPanel() {
   elements.aiToggle.classList.toggle("active", state.aiOpen);
   elements.aiProviderSelect.value = currentAiProvider();
   elements.aiModelInput.value = currentAiModel();
+  elements.aiBaseUrlInput.value = currentAiBaseUrl();
+  elements.aiBaseUrlInput.disabled = state.aiLoading;
   elements.aiApiKeyInput.value = currentAiKey();
   elements.aiModelBadge.textContent = `${currentAiProvider() === "openai" ? "OpenAI" : "DeepSeek"} · ${currentAiModel()}`;
   elements.aiSendButton.disabled = state.aiLoading;
@@ -925,7 +952,7 @@ function renderAiPanel() {
     item.className = `aiMessage ${message.role}`;
     const bubble = document.createElement("div");
     bubble.className = "aiBubble";
-    bubble.textContent = message.content;
+    bubble.textContent = message.content || (message.streaming ? t("aiThinking") : "");
     item.append(bubble);
 
     if (message.draftMarkdown) {
@@ -946,7 +973,8 @@ function renderAiPanel() {
     elements.aiMessages.append(item);
   });
 
-  if (state.aiLoading) {
+  const hasStreamingMessage = state.aiMessages.some((message) => message.streaming);
+  if (state.aiLoading && !hasStreamingMessage) {
     const loading = document.createElement("div");
     loading.className = "aiMessage assistant";
     loading.innerHTML = `<div class="aiBubble">${escapeHtml(t("aiThinking"))}</div>`;
@@ -958,7 +986,7 @@ function renderAiPanel() {
 
 function recentAiConversation() {
   return state.aiMessages
-    .filter((message) => message.role === "user" || message.role === "assistant")
+    .filter((message) => (message.role === "user" || message.role === "assistant") && !message.streaming && message.content)
     .slice(-8)
     .map((message) => ({
       role: message.role,
@@ -988,9 +1016,47 @@ async function sendAiMessage(instruction) {
   renderAiPanel();
 
   try {
+    if (window.marknote?.askAiStream) {
+      const streamingMessage = createAiMessage("assistant", "", { streaming: true });
+      state.aiMessages.push(streamingMessage);
+      renderAiPanel();
+
+      const result = await new Promise((resolve, reject) => {
+        window.marknote.askAiStream({
+          provider: currentAiProvider(),
+          model: currentAiModel(),
+          baseUrl: currentAiBaseUrl(),
+          apiKey: currentAiKey(),
+          instruction: trimmed,
+          markdown: state.markdown,
+          fileName: state.fileName,
+          messages: recentAiConversation()
+        }, {
+          onDelta: (text) => {
+            streamingMessage.content = text;
+            renderAiPanel();
+          },
+          onDone: resolve,
+          onError: reject
+        });
+      });
+
+      streamingMessage.streaming = false;
+      if (!result?.ok) {
+        throw new Error(result?.message || result?.error || t("aiError"));
+      }
+      streamingMessage.content = result.message || "";
+      if (result.type === "draft" && result.markdown?.trim()) {
+        streamingMessage.content ||= t("aiDraftReady");
+        streamingMessage.draftMarkdown = result.markdown;
+      }
+      return;
+    }
+
     const result = await window.marknote.askAi({
       provider: currentAiProvider(),
       model: currentAiModel(),
+      baseUrl: currentAiBaseUrl(),
       apiKey: currentAiKey(),
       instruction: trimmed,
       markdown: state.markdown,
@@ -1012,9 +1078,11 @@ async function sendAiMessage(instruction) {
       state.aiMessages.push(createAiMessage("assistant", content || t("aiDraftReady")));
     }
   } catch (error) {
-    const message = /No handler registered for 'ai:complete'/.test(error.message)
+    const errorMessage = error?.message || String(error);
+    const message = /No handler registered for 'ai:complete'/.test(errorMessage)
       ? t("aiRestartRequired")
-      : `${t("aiError")}：${error.message}`;
+      : `${t("aiError")}：${errorMessage}`;
+    state.aiMessages = state.aiMessages.filter((item) => !item.streaming);
     state.aiMessages.push(createAiMessage("error", message));
   } finally {
     state.aiLoading = false;
@@ -1096,10 +1164,7 @@ function renderPreview() {
     gfm: true
   });
 
-  const rawHtml = marked.parse(state.markdown);
-  elements.preview.innerHTML = DOMPurify.sanitize(rawHtml, {
-    ADD_ATTR: ["target", "rel"]
-  });
+  elements.preview.innerHTML = sanitizeMarkdownHtml(markdownToHtmlWithMath(state.markdown));
 
   const previewHeadings = [...elements.preview.querySelectorAll("h1, h2, h3")];
   previewHeadings.forEach((headingElement, index) => {
@@ -1122,14 +1187,87 @@ function renderMarkdownLine(line) {
 
   let rawHtml = "";
   try {
-    rawHtml = marked.parse(line, { breaks: true, gfm: true });
+    rawHtml = marked.parse(renderInlineMath(line), { breaks: true, gfm: true });
   } catch {
     rawHtml = `<p>${escapeHtml(line)}</p>`;
   }
 
-  return DOMPurify.sanitize(rawHtml, {
-    ADD_ATTR: ["target", "rel", "checked", "disabled", "type"]
+  return sanitizeMarkdownHtml(rawHtml);
+}
+
+function sanitizeMarkdownHtml(html) {
+  return DOMPurify.sanitize(html, {
+    ADD_TAGS: ["math", "semantics", "mrow", "mi", "mn", "mo", "msup", "msub", "msubsup", "mfrac", "msqrt", "mroot", "mtext", "annotation"],
+    ADD_ATTR: ["target", "rel", "checked", "disabled", "type", "class", "style", "aria-hidden", "xmlns", "encoding"]
   });
+}
+
+function markdownToHtmlWithMath(markdown) {
+  const lines = String(markdown || "").replace(/\r\n?/g, "\n").split("\n");
+  const renderedLines = [];
+  let inCodeFence = false;
+
+  for (let index = 0; index < lines.length; index += 1) {
+    const line = lines[index];
+    if (codeFenceInfo(line)) {
+      inCodeFence = !inCodeFence;
+      renderedLines.push(line);
+      continue;
+    }
+
+    if (!inCodeFence && isMathFenceLine(line)) {
+      const end = findMathFenceEnd(lines, index);
+      if (end > index) {
+        const math = lines.slice(index + 1, end).join("\n");
+        renderedLines.push(renderMathHtml(math, true));
+        index = end;
+        continue;
+      }
+    }
+
+    renderedLines.push(inCodeFence ? line : renderInlineMath(line));
+  }
+
+  return marked.parse(renderedLines.join("\n"), { breaks: true, gfm: true });
+}
+
+function renderInlineMath(line) {
+  return String(line || "").replace(/(^|[^\\$])\$([^$\n]+?)\$/g, (match, prefix, math) => {
+    if (!math.trim()) return match;
+    return `${prefix}${renderMathHtml(math, false)}`;
+  });
+}
+
+function renderMathHtml(math, displayMode) {
+  const source = String(math || "").trim();
+  if (!source) return "";
+
+  if (!window.katex?.renderToString) {
+    return `<code>${escapeHtml(source)}</code>`;
+  }
+
+  const html = window.katex.renderToString(source, {
+    displayMode,
+    throwOnError: false,
+    strict: false
+  });
+  const className = displayMode ? "mathBlock" : "mathInline";
+  return displayMode
+    ? `<div class="${className}">${html}</div>`
+    : `<span class="${className}">${html}</span>`;
+}
+
+function isMathFenceLine(line) {
+  return line.trim() === "$$";
+}
+
+function findMathFenceEnd(lines, startIndex) {
+  for (let index = startIndex + 1; index < lines.length; index += 1) {
+    if (isMathFenceLine(lines[index])) {
+      return index;
+    }
+  }
+  return startIndex;
 }
 
 function codeFenceInfo(line) {
@@ -1344,7 +1482,7 @@ class LinewiseMarkdownEditor {
     this.root = root;
     this.markdown = markdown;
     this.onChange = onChange;
-    this.activeLine = Math.min(state.hybridActiveLine || 0, this.lines.length - 1);
+    this.activeLine = this.clampLine(Number.isInteger(state.hybridActiveLine) ? state.hybridActiveLine : 0);
     this.editingCodeBlockStart = null;
     this.editingTableStart = null;
     this.selectionScrollGuard = {
@@ -1354,6 +1492,7 @@ class LinewiseMarkdownEditor {
       pointerY: 0
     };
     this.bindSelectionScrollGuard();
+    this.bindBlankAreaExit();
   }
 
   get lines() {
@@ -1364,16 +1503,30 @@ class LinewiseMarkdownEditor {
     return this.markdown;
   }
 
+  clampLine(lineIndex) {
+    const maxLine = Math.max(0, this.lines.length - 1);
+    return Math.max(-1, Math.min(lineIndex, maxLine));
+  }
+
   async setMarkdown(markdown, options = {}) {
     this.markdown = markdown ?? "";
-    const maxLine = Math.max(0, this.lines.length - 1);
-    this.activeLine = options.activeLine ?? (options.preserveActive ? this.activeLine : state.hybridActiveLine || 0);
-    this.activeLine = Math.max(0, Math.min(this.activeLine, maxLine));
+    const fallbackLine = Number.isInteger(state.hybridActiveLine) ? state.hybridActiveLine : 0;
+    this.activeLine = options.activeLine ?? (options.preserveActive ? this.activeLine : fallbackLine);
+    this.activeLine = this.clampLine(this.activeLine);
     state.hybridActiveLine = this.activeLine;
     this.render({
       focus: options.focus ?? false,
       caretOffset: options.caretOffset ?? null
     });
+  }
+
+  clearActiveLine() {
+    if (this.activeLine < 0 && this.editingCodeBlockStart === null && this.editingTableStart === null) return;
+    this.activeLine = -1;
+    this.editingCodeBlockStart = null;
+    this.editingTableStart = null;
+    state.hybridActiveLine = -1;
+    this.render({ focus: false });
   }
 
   focus() {
@@ -1410,6 +1563,13 @@ class LinewiseMarkdownEditor {
         this.selectionScrollGuard.active = false;
         window.cancelAnimationFrame(this.selectionScrollGuard.frame);
       }, 80);
+    });
+  }
+
+  bindBlankAreaExit() {
+    this.root.addEventListener("click", (event) => {
+      if (event.target !== this.root || hasTextSelection()) return;
+      this.clearActiveLine();
     });
   }
 
@@ -1650,6 +1810,27 @@ class LinewiseMarkdownEditor {
         this.renderTableEditor(editingTableRange, lines, scrollTop);
         index = editingTableRange.end;
         continue;
+      }
+
+      if (isMathFenceLine(line)) {
+        const mathEnd = findMathFenceEnd(lines, index);
+        if (mathEnd > index) {
+          const row = document.createElement("div");
+          row.className = "hybridLine rendered hybridMathBlock";
+          row.dataset.line = String(index);
+          row.innerHTML = renderMathHtml(lines.slice(index + 1, mathEnd).join("\n"), true);
+          row.addEventListener("click", () => {
+            if (hasTextSelection()) return;
+            this.activeLine = index;
+            this.editingCodeBlockStart = null;
+            this.editingTableStart = null;
+            state.hybridActiveLine = index;
+            this.render({ focus: true, caretOffset: line.length });
+          });
+          this.root.append(row);
+          index = mathEnd;
+          continue;
+        }
       }
 
       const fenceInfo = codeFenceInfo(line);
@@ -2951,6 +3132,9 @@ function bindEvents() {
   });
   elements.aiModelInput.addEventListener("change", (event) => {
     setAiModel(event.target.value);
+  });
+  elements.aiBaseUrlInput.addEventListener("change", (event) => {
+    setAiBaseUrl(event.target.value);
   });
   elements.aiApiKeyInput.addEventListener("change", (event) => {
     setAiKey(event.target.value);

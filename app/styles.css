@@ -945,6 +945,17 @@ button {
   font-weight: 780;
 }
 
+.hybridLine.hybridMathBlock {
+  margin-top: 12px;
+  margin-bottom: 12px;
+  overflow-x: auto;
+  cursor: pointer;
+}
+
+.hybridLine.hybridMathBlock .mathBlock {
+  margin: 0;
+}
+
 .hybridCodeEditor {
   display: grid;
   max-width: 820px;
@@ -1132,6 +1143,31 @@ button {
 
 .wysiwygEditor code {
   font-family: var(--mono);
+}
+
+.mathBlock,
+.mathInline {
+  color: var(--text);
+}
+
+.mathBlock {
+  max-width: 100%;
+  margin: 16px 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 6px 0;
+}
+
+.mathBlock .katex-display {
+  margin: 0;
+}
+
+.mathInline {
+  display: inline-block;
+  max-width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+  vertical-align: -0.18em;
 }
 
 .wysiwygEditor table {

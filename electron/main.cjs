@@ -194,7 +194,9 @@ ipcMain.handle("file:export-pdf", async (_event, payload) => {
   }
 
   const cssPath = path.join(__dirname, "../app/styles.css");
+  const katexCssPath = path.join(__dirname, "../app/vendor/katex/katex.min.css");
   const css = await fs.readFile(cssPath, "utf8");
+  const katexCss = await fs.readFile(katexCssPath, "utf8").catch(() => "");
   const win = new BrowserWindow({
     show: false,
     width: 900,
@@ -215,6 +217,7 @@ ipcMain.handle("file:export-pdf", async (_event, payload) => {
     <title>${escapeHtml(title)}</title>
     <style>
       ${css}
+      ${katexCss}
       body { min-width: 0; min-height: 0; overflow: visible; background: var(--surface); }
       .markdownPreview { max-width: 760px; padding: 32px 42px; }
       @media print {
@@ -258,13 +261,75 @@ ipcMain.handle("file:readme", async () => {
 });
 
 ipcMain.handle("ai:complete", async (_event, payload) => {
-  const provider = payload?.provider === "deepseek" ? "deepseek" : "openai";
-  const apiKey = String(payload?.apiKey || "").trim();
-  const model = String(payload?.model || "").trim() || (provider === "deepseek" ? "deepseek-chat" : "gpt-4.1-mini");
-
-  if (!apiKey) {
+  const request = buildAiRequest(payload);
+  if (!request.apiKey) {
     return { ok: false, error: "missing-key" };
   }
+
+  try {
+    const content = request.provider === "deepseek"
+      ? await callDeepSeek(request)
+      : await callOpenAI(request);
+
+    return {
+      ok: true,
+      ...normalizeAiContent(content)
+    };
+  } catch (error) {
+    return {
+      ok: false,
+      error: error?.code || "request-failed",
+      message: error?.message || "AI request failed"
+    };
+  }
+});
+
+ipcMain.handle("ai:stream", async (event, message) => {
+  const requestId = message?.requestId;
+  const payload = message?.payload || {};
+  const request = buildAiRequest(payload);
+
+  if (!requestId) return;
+
+  const send = (channel, body) => {
+    event.sender.send(channel, { requestId, ...body });
+  };
+
+  if (!request.apiKey) {
+    send("ai:stream-error", { error: "missing-key" });
+    return;
+  }
+
+  let raw = "";
+  try {
+    const content = request.provider === "deepseek"
+      ? await callDeepSeekStream(request, (delta) => {
+          raw += delta;
+          send("ai:stream-delta", { text: extractPartialJsonStringField(raw, "message") || raw });
+        })
+      : await callOpenAIStream(request, (delta) => {
+          raw += delta;
+          send("ai:stream-delta", { text: extractPartialJsonStringField(raw, "message") || raw });
+        });
+
+    send("ai:stream-done", {
+      result: {
+        ok: true,
+        ...normalizeAiContent(content)
+      }
+    });
+  } catch (error) {
+    send("ai:stream-error", {
+      error: error?.message || "AI request failed"
+    });
+  }
+});
+
+function buildAiRequest(payload) {
+  const provider = payload?.provider === "deepseek" ? "deepseek" : "openai";
+  const apiKey = String(payload?.apiKey || "").trim();
+  const model = String(payload?.model || "").trim() || (provider === "deepseek" ? "deepseek-v4-flash" : "gpt-4.1-mini");
+  const baseUrl = normalizeChatBaseUrl(payload?.baseUrl, provider);
 
   const systemPrompt = [
     "You are MarkNote Agent, a careful Markdown note assistant.",
@@ -288,23 +353,8 @@ ipcMain.handle("ai:complete", async (_event, payload) => {
     payload?.markdown || ""
   ].join("\n\n");
 
-  try {
-    const content = provider === "deepseek"
-      ? await callDeepSeek({ apiKey, model, systemPrompt, userPrompt })
-      : await callOpenAI({ apiKey, model, systemPrompt, userPrompt });
-
-    return {
-      ok: true,
-      ...normalizeAiContent(content)
-    };
-  } catch (error) {
-    return {
-      ok: false,
-      error: error?.code || "request-failed",
-      message: error?.message || "AI request failed"
-    };
-  }
-});
+  return { provider, apiKey, model, baseUrl, systemPrompt, userPrompt };
+}
 
 ipcMain.handle("dialog:confirm-draft-restore", async (event, payload) => {
   const win = BrowserWindow.fromWebContents(event.sender);
@@ -375,8 +425,15 @@ function escapeAttribute(value) {
   return escapeHtml(value).replace(/`/g, "&#96;");
 }
 
-async function callOpenAI({ apiKey, model, systemPrompt, userPrompt }) {
-  const response = await fetch("https://api.openai.com/v1/responses", {
+function normalizeChatBaseUrl(baseUrl, provider) {
+  const fallback = provider === "deepseek" ? "https://api.deepseek.com" : "https://api.openai.com/v1";
+  const raw = String(baseUrl || fallback).trim() || fallback;
+  const withoutTrailingSlash = raw.replace(/\/+$/, "");
+  return withoutTrailingSlash.replace(/\/chat\/completions$/i, "");
+}
+
+async function callOpenAI({ apiKey, model, baseUrl, systemPrompt, userPrompt }) {
+  const response = await fetch(`${baseUrl}/chat/completions`, {
     method: "POST",
     headers: {
       "Authorization": `Bearer ${apiKey}`,
@@ -384,7 +441,7 @@ async function callOpenAI({ apiKey, model, systemPrompt, userPrompt }) {
     },
     body: JSON.stringify({
       model,
-      input: [
+      messages: [
         { role: "system", content: systemPrompt },
         { role: "user", content: userPrompt }
       ],
@@ -399,11 +456,45 @@ async function callOpenAI({ apiKey, model, systemPrompt, userPrompt }) {
     throw error;
   }
 
-  return data.output_text || collectResponseText(data);
+  return data?.choices?.[0]?.message?.content || "";
 }
 
-async function callDeepSeek({ apiKey, model, systemPrompt, userPrompt }) {
-  const response = await fetch("https://api.deepseek.com/chat/completions", {
+async function callOpenAIStream({ apiKey, model, baseUrl, systemPrompt, userPrompt }, onDelta) {
+  const response = await fetch(`${baseUrl}/chat/completions`, {
+    method: "POST",
+    headers: {
+      "Authorization": `Bearer ${apiKey}`,
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      model,
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: userPrompt }
+      ],
+      temperature: 0.4,
+      stream: true
+    })
+  });
+
+  if (!response.ok) {
+    const data = await response.json().catch(() => ({}));
+    const error = new Error(data?.error?.message || `OpenAI request failed (${response.status})`);
+    error.code = response.status === 401 ? "auth-failed" : "request-failed";
+    throw error;
+  }
+
+  return readServerSentEvents(response, (event) => {
+    const delta = event.data?.choices?.[0]?.delta?.content || "";
+    if (delta) {
+      onDelta(delta);
+    }
+    return delta;
+  });
+}
+
+async function callDeepSeek({ apiKey, model, baseUrl, systemPrompt, userPrompt }) {
+  const response = await fetch(`${baseUrl}/chat/completions`, {
     method: "POST",
     headers: {
       "Authorization": `Bearer ${apiKey}`,
@@ -427,6 +518,68 @@ async function callDeepSeek({ apiKey, model, systemPrompt, userPrompt }) {
   }
 
   return data?.choices?.[0]?.message?.content || "";
+}
+
+async function callDeepSeekStream({ apiKey, model, baseUrl, systemPrompt, userPrompt }, onDelta) {
+  const response = await fetch(`${baseUrl}/chat/completions`, {
+    method: "POST",
+    headers: {
+      "Authorization": `Bearer ${apiKey}`,
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      model,
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: userPrompt }
+      ],
+      temperature: 0.4,
+      stream: true
+    })
+  });
+
+  if (!response.ok) {
+    const data = await response.json().catch(() => ({}));
+    const error = new Error(data?.error?.message || `DeepSeek request failed (${response.status})`);
+    error.code = response.status === 401 ? "auth-failed" : "request-failed";
+    throw error;
+  }
+
+  return readServerSentEvents(response, (event) => {
+    const delta = event.data?.choices?.[0]?.delta?.content || "";
+    if (delta) {
+      onDelta(delta);
+    }
+    return delta;
+  });
+}
+
+async function readServerSentEvents(response, onEvent) {
+  const decoder = new TextDecoder();
+  let buffer = "";
+  let content = "";
+
+  for await (const chunk of response.body) {
+    buffer += decoder.decode(chunk, { stream: true });
+    const parts = buffer.split("\n\n");
+    buffer = parts.pop() || "";
+
+    for (const part of parts) {
+      const lines = part.split("\n");
+      const type = lines.find((line) => line.startsWith("event:"))?.slice(6).trim() || "";
+      const dataText = lines
+        .filter((line) => line.startsWith("data:"))
+        .map((line) => line.slice(5).trim())
+        .join("\n");
+
+      if (!dataText || dataText === "[DONE]") continue;
+
+      const data = JSON.parse(dataText);
+      content += onEvent({ type, data }) || "";
+    }
+  }
+
+  return content;
 }
 
 function collectResponseText(data) {
@@ -456,4 +609,46 @@ function normalizeAiContent(content) {
       markdown: ""
     };
   }
+}
+
+function extractPartialJsonStringField(jsonText, fieldName) {
+  const fieldStart = jsonText.indexOf(`"${fieldName}"`);
+  if (fieldStart < 0) return "";
+
+  const colon = jsonText.indexOf(":", fieldStart);
+  if (colon < 0) return "";
+
+  const quote = jsonText.indexOf("\"", colon + 1);
+  if (quote < 0) return "";
+
+  let value = "";
+  let escaped = false;
+  for (let index = quote + 1; index < jsonText.length; index += 1) {
+    const char = jsonText[index];
+    if (escaped) {
+      value += decodeJsonEscape(char);
+      escaped = false;
+    } else if (char === "\\") {
+      escaped = true;
+    } else if (char === "\"") {
+      break;
+    } else {
+      value += char;
+    }
+  }
+
+  return value;
+}
+
+function decodeJsonEscape(char) {
+  return {
+    "\"": "\"",
+    "\\": "\\",
+    "/": "/",
+    b: "\b",
+    f: "\f",
+    n: "\n",
+    r: "\r",
+    t: "\t"
+  }[char] || char;
 }
