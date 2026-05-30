@@ -1588,7 +1588,7 @@ class LinewiseMarkdownEditor {
       const allowedDirection =
         (nearTop && delta < 0) ||
         (nearBottom && delta > 0);
-      const maxStep = hasTextSelection() ? 10 : 48;
+      const maxStep = hasTextSelection() ? 25 : 48;
 
       if (!allowedDirection) {
         this.root.scrollTop = this.selectionScrollGuard.lastScrollTop;
@@ -2055,6 +2055,65 @@ class LinewiseMarkdownEditor {
       source: "paste",
       caretOffset: replacement[replacement.length - 1].length - after.length
     });
+  }
+}
+
+function bindTextareaSelectionScrollGuard(textarea) {
+  const guard = {
+    active: false,
+    frame: 0,
+    lastScrollTop: 0,
+    pointerY: 0
+  };
+
+  textarea.addEventListener("mousedown", (event) => {
+    if (event.button !== 0) return;
+    guard.active = true;
+    guard.lastScrollTop = textarea.scrollTop;
+    guard.pointerY = event.clientY;
+    watchTextareaScroll();
+  });
+
+  window.addEventListener("mousemove", (event) => {
+    if (!guard.active) return;
+    guard.pointerY = event.clientY;
+  });
+
+  window.addEventListener("mouseup", () => {
+    window.setTimeout(() => {
+      guard.active = false;
+      window.cancelAnimationFrame(guard.frame);
+    }, 80);
+  });
+
+  function watchTextareaScroll() {
+    window.cancelAnimationFrame(guard.frame);
+
+    const limitScrollStep = () => {
+      if (!guard.active) return;
+
+      const currentTop = textarea.scrollTop;
+      const delta = currentTop - guard.lastScrollTop;
+      const rect = textarea.getBoundingClientRect();
+      const edgeSize = Math.min(72, textarea.clientHeight * 0.12);
+      const nearTop = guard.pointerY <= rect.top + edgeSize;
+      const nearBottom = guard.pointerY >= rect.bottom - edgeSize;
+      const allowedDirection =
+        (nearTop && delta < 0) ||
+        (nearBottom && delta > 0);
+      const maxStep = hasTextSelection() ? 25 : 48;
+
+      if (!allowedDirection) {
+        textarea.scrollTop = guard.lastScrollTop;
+      } else if (Math.abs(delta) > maxStep) {
+        textarea.scrollTop = guard.lastScrollTop + Math.sign(delta) * maxStep;
+      }
+
+      guard.lastScrollTop = textarea.scrollTop;
+      guard.frame = window.requestAnimationFrame(limitScrollStep);
+    };
+
+    guard.frame = window.requestAnimationFrame(limitScrollStep);
   }
 }
 
@@ -3018,6 +3077,7 @@ function bindEvents() {
   });
 
   elements.editor.addEventListener("scroll", syncPreviewScroll);
+  bindTextareaSelectionScrollGuard(elements.editor);
 
   elements.previewPane.addEventListener("scroll", () => {
     if (!state.syncingPreviewScroll) {
