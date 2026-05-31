@@ -183,16 +183,24 @@
       <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
       <div class="editorContextMenu" id="editorContextMenu" hidden>
         <button type="button" data-editor-action="copy" data-i18n="copySelection">Copy</button>
-        <button type="button" data-editor-action="cut" data-i18n="cutSelection">Cut</button>
+        <button type="button" data-editor-action="cut" data-selection-only data-edit-selection-only data-i18n="cutSelection">Cut</button>
         <button type="button" data-editor-action="paste" data-i18n="paste">Paste</button>
+        <div class="contextDivider" data-selection-only data-edit-selection-only></div>
+        <button type="button" data-editor-action="bold" data-selection-only data-edit-selection-only data-i18n="bold">Bold</button>
+        <button type="button" data-editor-action="italic" data-selection-only data-edit-selection-only data-i18n="italic">Italic</button>
+        <button type="button" data-editor-action="code" data-selection-only data-edit-selection-only data-i18n="inlineCode">Inline code</button>
         <div class="contextDivider" data-selection-only></div>
-        <button type="button" data-editor-action="bold" data-selection-only data-i18n="bold">Bold</button>
-        <button type="button" data-editor-action="italic" data-selection-only data-i18n="italic">Italic</button>
-        <button type="button" data-editor-action="code" data-selection-only data-i18n="inlineCode">Inline code</button>
-        <div class="contextDivider" data-selection-only></div>
-        <button type="button" data-editor-action="ai-polish" data-selection-only data-i18n="aiPolishSelection">AI polish selection</button>
-        <button type="button" data-editor-action="ai-summary" data-selection-only data-i18n="aiSummarySelection">AI summarize selection</button>
-        <button type="button" data-editor-action="ai-search" data-selection-only data-i18n="aiSearchSelection">AI search selection</button>
+        <div class="contextSubmenu" data-selection-only>
+          <button class="contextSubmenuTrigger" type="button">
+            <span data-i18n="aiSelection">AI selection</span>
+            <span class="contextSubmenuArrow">›</span>
+          </button>
+          <div class="contextSubmenuPanel">
+            <button type="button" data-editor-action="ai-search" data-i18n="aiSearchSelection">AI search selection</button>
+            <button type="button" data-editor-action="ai-polish" data-i18n="aiPolishSelection">AI polish selection</button>
+            <button type="button" data-editor-action="ai-summary" data-i18n="aiSummarySelection">AI summarize selection</button>
+          </div>
+        </div>
       </div>
     </div>
 

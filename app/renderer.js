@@ -61,6 +61,7 @@ const translations = {
     bold: "加粗",
     italic: "斜体",
     inlineCode: "行内代码",
+    aiSelection: "AI 处理",
     aiPolishSelection: "AI 润色所选内容",
     aiSummarySelection: "AI 总结所选内容",
     aiSearchSelection: "AI 搜索所选内容",
@@ -189,6 +190,7 @@ const translations = {
     bold: "Bold",
     italic: "Italic",
     inlineCode: "Inline code",
+    aiSelection: "AI selection",
     aiPolishSelection: "AI polish selection",
     aiSummarySelection: "AI summarize selection",
     aiSearchSelection: "AI search selection",
@@ -321,7 +323,8 @@ const state = {
   aiSettings: loadAiSettings(),
   settingsOpen: false,
   syncingPreviewScroll: false,
-  previewManualUntil: 0
+  previewManualUntil: 0,
+  activeHeadingScrollFrame: 0
 };
 
 const elements = {
@@ -536,7 +539,8 @@ function openFileContextMenu() {
 function editorContainsNode(node) {
   return Boolean(node && (
     elements.editor.contains(node) ||
-    elements.wysiwygEditor.contains(node)
+    elements.wysiwygEditor.contains(node) ||
+    elements.previewPane.contains(node)
   ));
 }
 
@@ -563,7 +567,7 @@ function selectionOffsetsWithin(node, range) {
 
 function selectedTextareaInfo(target) {
   const textarea = target?.closest?.("textarea") || (document.activeElement?.tagName === "TEXTAREA" ? document.activeElement : null);
-  if (!textarea || !editorContainsNode(textarea)) return null;
+  if (!textarea || !(elements.editor.contains(textarea) || elements.wysiwygEditor.contains(textarea))) return null;
   if (textarea.selectionStart === textarea.selectionEnd) return null;
 
   return {
@@ -621,6 +625,7 @@ function closeEditorContextMenu() {
 
 function positionEditorContextMenu(x, y) {
   const menu = elements.editorContextMenu;
+  menu.classList.remove("submenuLeft");
   menu.style.left = `${x}px`;
   menu.style.top = `${y}px`;
   menu.hidden = false;
@@ -630,19 +635,23 @@ function positionEditorContextMenu(x, y) {
   const nextTop = Math.min(y, window.innerHeight - rect.height - 8);
   menu.style.left = `${Math.max(8, nextLeft)}px`;
   menu.style.top = `${Math.max(8, nextTop)}px`;
+  menu.classList.toggle("submenuLeft", Math.max(8, nextLeft) + rect.width + 210 > window.innerWidth);
 }
 
 function renderEditorContextMenu() {
   const menu = elements.editorContextMenu;
   const hasSelection = state.editorContextHasSelection;
   const canEditSelection = Boolean(state.editorContextTarget?.editable);
+  const canPaste = !hasSelection && Boolean(state.editorContextTarget?.editable);
 
   menu.querySelectorAll("[data-selection-only]").forEach((node) => {
     node.hidden = !hasSelection;
   });
+  menu.querySelectorAll("[data-edit-selection-only]").forEach((node) => {
+    node.hidden = !hasSelection || !canEditSelection;
+  });
   menu.querySelector("[data-editor-action='copy']").hidden = !hasSelection;
-  menu.querySelector("[data-editor-action='cut']").hidden = !hasSelection;
-  menu.querySelector("[data-editor-action='paste']").hidden = hasSelection;
+  menu.querySelector("[data-editor-action='paste']").hidden = !canPaste;
   menu.querySelectorAll("[data-editor-action='cut'], [data-editor-action='bold'], [data-editor-action='italic'], [data-editor-action='code']").forEach((button) => {
     button.disabled = !canEditSelection;
   });
@@ -650,18 +659,28 @@ function renderEditorContextMenu() {
 
 function openEditorContextMenu(event) {
   const selectionInfo = currentEditorSelectionInfo(event.target);
+  const targetIsEditableSurface = elements.editor.contains(event.target) || elements.wysiwygEditor.contains(event.target);
+  if (!selectionInfo && !targetIsEditableSurface) {
+    closeEditorContextMenu();
+    return;
+  }
+
   state.editorContextOpen = true;
   state.editorContextHasSelection = Boolean(selectionInfo);
   state.editorContextSelectionText = selectionInfo?.text || "";
   state.editorContextTarget = selectionInfo || {
     type: "target",
-    element: event.target
+    element: event.target,
+    editable: targetIsEditableSurface
   };
   state.fileContextOpen = false;
   state.recentOpen = false;
   state.settingsOpen = false;
 
-  render();
+  renderFileContextMenu();
+  renderRecentFiles();
+  elements.settingsPanel.hidden = true;
+  elements.settingsToggle.classList.remove("active");
   renderEditorContextMenu();
   positionEditorContextMenu(event.clientX, event.clientY);
 }
@@ -1195,10 +1214,17 @@ function renderMarkdownLine(line) {
   return sanitizeMarkdownHtml(rawHtml);
 }
 
+function makeRenderedTaskCheckboxesInteractive(row) {
+  row.querySelectorAll("input[type='checkbox'][disabled]").forEach((checkbox) => {
+    checkbox.disabled = false;
+    checkbox.tabIndex = -1;
+  });
+}
+
 function sanitizeMarkdownHtml(html) {
   return DOMPurify.sanitize(html, {
     ADD_TAGS: ["math", "semantics", "mrow", "mi", "mn", "mo", "msup", "msub", "msubsup", "mfrac", "msqrt", "mroot", "mtext", "annotation"],
-    ADD_ATTR: ["target", "rel", "checked", "disabled", "type", "class", "style", "aria-hidden", "xmlns", "encoding"]
+    ADD_ATTR: ["target", "rel", "checked", "disabled", "type", "class", "style", "aria-hidden", "xmlns", "encoding", "tabindex"]
   });
 }
 
@@ -1268,6 +1294,21 @@ function findMathFenceEnd(lines, startIndex) {
     }
   }
   return startIndex;
+}
+
+function findMathFenceRangeForLine(lines, lineIndex) {
+  let start = -1;
+
+  for (let index = 0; index <= lineIndex; index += 1) {
+    if (isMathFenceLine(lines[index])) {
+      start = start === -1 ? index : -1;
+    }
+  }
+
+  if (start === -1) return null;
+  const end = findMathFenceEnd(lines, start);
+  if (end <= start || lineIndex > end) return null;
+  return { start, end };
 }
 
 function codeFenceInfo(line) {
@@ -1485,6 +1526,7 @@ class LinewiseMarkdownEditor {
     this.activeLine = this.clampLine(Number.isInteger(state.hybridActiveLine) ? state.hybridActiveLine : 0);
     this.editingCodeBlockStart = null;
     this.editingTableStart = null;
+    this.editingMathStart = null;
     this.selectionScrollGuard = {
       active: false,
       frame: 0,
@@ -1493,6 +1535,7 @@ class LinewiseMarkdownEditor {
     };
     this.bindSelectionScrollGuard();
     this.bindBlankAreaExit();
+    this.bindMathBlockEdit();
   }
 
   get lines() {
@@ -1521,10 +1564,16 @@ class LinewiseMarkdownEditor {
   }
 
   clearActiveLine() {
-    if (this.activeLine < 0 && this.editingCodeBlockStart === null && this.editingTableStart === null) return;
+    if (
+      this.activeLine < 0 &&
+      this.editingCodeBlockStart === null &&
+      this.editingTableStart === null &&
+      this.editingMathStart === null
+    ) return;
     this.activeLine = -1;
     this.editingCodeBlockStart = null;
     this.editingTableStart = null;
+    this.editingMathStart = null;
     state.hybridActiveLine = -1;
     this.render({ focus: false });
   }
@@ -1537,11 +1586,46 @@ class LinewiseMarkdownEditor {
   scrollToHeading(heading) {
     this.activeLine = heading.line;
     state.hybridActiveLine = this.activeLine;
-    this.render({ focus: true });
-    this.root.querySelector(`[data-line="${heading.line}"]`)?.scrollIntoView({
-      behavior: "smooth",
-      block: "center"
+    this.editingCodeBlockStart = null;
+    this.editingTableStart = null;
+    this.editingMathStart = null;
+    this.render({ focus: false, restoreScroll: false });
+    window.requestAnimationFrame(() => {
+      this.scrollLineIntoView(heading.line);
+      this.focusActiveLineAtEnd();
     });
+  }
+
+  findElementForLine(lineIndex) {
+    const exact = this.root.querySelector(`[data-line="${lineIndex}"]`);
+    if (exact) return exact;
+
+    return [...this.root.querySelectorAll("[data-line-start][data-line-end]")]
+      .find((node) => {
+        const start = Number(node.dataset.lineStart);
+        const end = Number(node.dataset.lineEnd);
+        return Number.isInteger(start) &&
+          Number.isInteger(end) &&
+          lineIndex >= start &&
+          lineIndex <= end;
+      }) ?? null;
+  }
+
+  scrollLineIntoView(lineIndex) {
+    const target = this.findElementForLine(lineIndex);
+    if (!target) return;
+
+    this.root.scrollTo({
+      top: Math.max(0, target.offsetTop - this.root.clientHeight * 0.22),
+      behavior: "smooth"
+    });
+  }
+
+  focusActiveLineAtEnd() {
+    const active = this.root.querySelector(".hybridSourceLine");
+    if (!active) return;
+    active.focus({ preventScroll: true });
+    setSelectionOffset(active, active.textContent.length);
   }
 
   bindSelectionScrollGuard() {
@@ -1571,6 +1655,32 @@ class LinewiseMarkdownEditor {
       if (event.target !== this.root || hasTextSelection()) return;
       this.clearActiveLine();
     });
+  }
+
+  bindMathBlockEdit() {
+    this.root.addEventListener("click", (event) => {
+      const block = event.target.closest?.(".hybridMathBlock");
+      if (!block || !this.root.contains(block) || hasTextSelection()) return;
+
+      const lineIndex = Number(block.dataset.line);
+      if (!Number.isInteger(lineIndex)) return;
+
+      event.preventDefault();
+      event.stopPropagation();
+      this.openMathEditor(lineIndex);
+    }, true);
+  }
+
+  openMathEditor(lineIndex) {
+    const range = findMathFenceRangeForLine(this.lines, lineIndex);
+    if (!range) return;
+
+    this.activeLine = range.start;
+    this.editingCodeBlockStart = null;
+    this.editingTableStart = null;
+    this.editingMathStart = range.start;
+    state.hybridActiveLine = range.start;
+    this.render({ focus: false });
   }
 
   watchSelectionScroll() {
@@ -1614,11 +1724,39 @@ class LinewiseMarkdownEditor {
     }
   }
 
+  toggleTaskLine(lineIndex) {
+    const lines = this.lines;
+    const line = lines[lineIndex] || "";
+    const nextLine = line.replace(
+      /^(\s*(?:[-*+]|\d+[.)])\s*)(?:\[([ xX])\]|【\s*([xX])?\s*】)(?=\s+)/,
+      (_match, bullet, englishState = "", chineseState = "") => {
+        const checked = `${englishState}${chineseState}`.trim().toLowerCase() === "x";
+        return `${bullet}[${checked ? " " : "x"}]`;
+      }
+    );
+    if (nextLine === line) return false;
+
+    const scrollTop = this.root.scrollTop;
+    lines[lineIndex] = nextLine;
+    this.markdown = lines.join("\n");
+    this.editingCodeBlockStart = null;
+    this.editingTableStart = null;
+    this.editingMathStart = null;
+    this.onChange?.(this.markdown, {
+      source: "task-toggle",
+      preserveActive: true
+    });
+    this.render({ focus: false });
+    this.restoreScroll(scrollTop);
+    return true;
+  }
+
   replaceLines(lines, activeLine, options = {}) {
     this.markdown = lines.join("\n");
     this.activeLine = Math.max(0, Math.min(activeLine, lines.length - 1));
     this.editingCodeBlockStart = Number.isInteger(options.editCodeBlockStart) ? options.editCodeBlockStart : null;
     this.editingTableStart = Number.isInteger(options.editTableStart) ? options.editTableStart : null;
+    this.editingMathStart = Number.isInteger(options.editMathStart) ? options.editMathStart : null;
     state.hybridActiveLine = this.activeLine;
     this.onChange?.(this.markdown, options);
     this.render({
@@ -1658,6 +1796,73 @@ class LinewiseMarkdownEditor {
     this.editingTableStart = currentRange.start;
     state.hybridActiveLine = this.activeLine;
     this.onChange?.(this.markdown, options);
+  }
+
+  replaceMathBlock(range, mathMarkdown, options = {}) {
+    const lines = this.lines;
+    const currentRange = findMathFenceRangeForLine(lines, this.editingMathStart ?? this.activeLine) || range;
+    const before = lines.slice(0, currentRange.start);
+    const after = lines.slice(currentRange.end + 1);
+    const mathLines = mathMarkdown.replace(/\r\n?/g, "\n").split("\n");
+    const nextLines = [...before, ...mathLines, ...after];
+
+    this.markdown = nextLines.join("\n");
+    this.activeLine = currentRange.start;
+    this.editingMathStart = currentRange.start;
+    state.hybridActiveLine = this.activeLine;
+    this.onChange?.(this.markdown, options);
+  }
+
+  renderMathEditor(range, lines, scrollTop) {
+    const row = document.createElement("div");
+    row.className = "hybridMathEditor";
+    row.dataset.line = String(range.start);
+
+    const header = document.createElement("div");
+    header.className = "hybridMathEditorHeader";
+
+    const label = document.createElement("span");
+    label.textContent = "formula";
+
+    const exitButton = document.createElement("button");
+    exitButton.type = "button";
+    exitButton.textContent = t("exitTableEdit");
+
+    header.append(label, exitButton);
+
+    const textarea = document.createElement("textarea");
+    textarea.className = "hybridMathTextarea";
+    textarea.spellcheck = false;
+    textarea.value = lines.slice(range.start, range.end + 1).join("\n");
+    textarea.setAttribute("aria-label", "公式 Markdown 内容");
+
+    const closeEditor = () => {
+      this.editingMathStart = null;
+      this.render({ focus: false });
+    };
+
+    textarea.addEventListener("input", () => {
+      this.replaceMathBlock(range, textarea.value, {
+        source: "mathblock",
+        wasFocused: true
+      });
+    });
+    textarea.addEventListener("keydown", (event) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        closeEditor();
+      }
+    });
+    exitButton.addEventListener("click", closeEditor);
+
+    row.append(header, textarea);
+    this.root.append(row);
+
+    window.setTimeout(() => {
+      textarea.focus();
+      textarea.setSelectionRange(textarea.value.length, textarea.value.length);
+      this.restoreScroll(scrollTop);
+    }, 0);
   }
 
   renderTableEditor(range, lines, scrollTop) {
@@ -1765,6 +1970,7 @@ class LinewiseMarkdownEditor {
         event.preventDefault();
         this.editingCodeBlockStart = null;
         this.editingTableStart = null;
+        this.editingMathStart = null;
         this.render({ focus: false });
       }
     });
@@ -1773,6 +1979,7 @@ class LinewiseMarkdownEditor {
         event.preventDefault();
         this.editingCodeBlockStart = null;
         this.editingTableStart = null;
+        this.editingMathStart = null;
         this.render({ focus: false });
       }
     });
@@ -1787,7 +1994,7 @@ class LinewiseMarkdownEditor {
     }, 0);
   }
 
-  render({ focus = false, caretOffset = null, comfortable = false } = {}) {
+  render({ focus = false, caretOffset = null, comfortable = false, restoreScroll = true } = {}) {
     const scrollTop = this.root.scrollTop;
     const lines = this.lines.length ? this.lines : [""];
     const editingCodeRange = Number.isInteger(this.editingCodeBlockStart)
@@ -1795,6 +2002,9 @@ class LinewiseMarkdownEditor {
       : null;
     const editingTableRange = Number.isInteger(this.editingTableStart)
       ? findTableRangeForLine(lines, this.editingTableStart)
+      : null;
+    const editingMathRange = Number.isInteger(this.editingMathStart)
+      ? findMathFenceRangeForLine(lines, this.editingMathStart)
       : null;
     this.root.innerHTML = "";
 
@@ -1812,21 +2022,21 @@ class LinewiseMarkdownEditor {
         continue;
       }
 
+      if (editingMathRange && index === editingMathRange.start) {
+        this.renderMathEditor(editingMathRange, lines, scrollTop);
+        index = editingMathRange.end;
+        continue;
+      }
+
       if (isMathFenceLine(line)) {
         const mathEnd = findMathFenceEnd(lines, index);
         if (mathEnd > index) {
           const row = document.createElement("div");
           row.className = "hybridLine rendered hybridMathBlock";
           row.dataset.line = String(index);
+          row.dataset.lineStart = String(index);
+          row.dataset.lineEnd = String(mathEnd);
           row.innerHTML = renderMathHtml(lines.slice(index + 1, mathEnd).join("\n"), true);
-          row.addEventListener("click", () => {
-            if (hasTextSelection()) return;
-            this.activeLine = index;
-            this.editingCodeBlockStart = null;
-            this.editingTableStart = null;
-            state.hybridActiveLine = index;
-            this.render({ focus: true, caretOffset: line.length });
-          });
           this.root.append(row);
           index = mathEnd;
           continue;
@@ -1839,12 +2049,15 @@ class LinewiseMarkdownEditor {
         const row = document.createElement("div");
         row.className = "hybridLine rendered hybridCodeBlock";
         row.dataset.line = String(index);
+        row.dataset.lineStart = String(index);
+        row.dataset.lineEnd = String(fenceEnd);
         row.innerHTML = markdownPreviewHtml(lines.slice(index, fenceEnd + 1).join("\n"));
         row.addEventListener("click", () => {
           if (hasTextSelection()) return;
           this.activeLine = index;
           this.editingCodeBlockStart = index;
           this.editingTableStart = null;
+          this.editingMathStart = null;
           state.hybridActiveLine = index;
           this.render({ focus: false });
         });
@@ -1858,12 +2071,15 @@ class LinewiseMarkdownEditor {
         const row = document.createElement("div");
         row.className = "hybridLine rendered hybridTableBlock";
         row.dataset.line = String(index);
+        row.dataset.lineStart = String(tableRange.start);
+        row.dataset.lineEnd = String(tableRange.end);
         row.innerHTML = markdownPreviewHtml(lines.slice(tableRange.start, tableRange.end + 1).join("\n"));
         row.addEventListener("click", () => {
           if (hasTextSelection()) return;
           this.activeLine = index;
           this.editingTableStart = index;
           this.editingCodeBlockStart = null;
+          this.editingMathStart = null;
           state.hybridActiveLine = index;
           this.render({ focus: false });
         });
@@ -1895,11 +2111,19 @@ class LinewiseMarkdownEditor {
         row.addEventListener("paste", (event) => this.handlePaste(event, row, index));
       } else {
         row.innerHTML = renderMarkdownLine(line);
-        row.addEventListener("click", () => {
+        makeRenderedTaskCheckboxesInteractive(row);
+        row.addEventListener("click", (event) => {
           if (hasTextSelection()) return;
+          if (event.target.closest?.("input[type='checkbox']")) {
+            event.preventDefault();
+            event.stopPropagation();
+            this.toggleTaskLine(index);
+            return;
+          }
           this.activeLine = index;
           this.editingCodeBlockStart = null;
           this.editingTableStart = null;
+          this.editingMathStart = null;
           state.hybridActiveLine = index;
           this.render({ focus: true, caretOffset: line.length });
         });
@@ -1908,8 +2132,10 @@ class LinewiseMarkdownEditor {
       this.root.append(row);
     }
 
-    this.restoreScroll(scrollTop);
-    if (focus && !editingCodeRange && !editingTableRange) {
+    if (restoreScroll) {
+      this.restoreScroll(scrollTop);
+    }
+    if (focus && !editingCodeRange && !editingTableRange && !editingMathRange) {
       window.setTimeout(() => {
         const active = this.root.querySelector(".hybridSourceLine");
         if (!active) return;
@@ -2016,23 +2242,8 @@ class LinewiseMarkdownEditor {
       return;
     }
 
-    if (event.key === "ArrowUp" && lineIndex > 0) {
-      event.preventDefault();
-      this.activeLine = lineIndex - 1;
-      this.editingCodeBlockStart = null;
-      this.editingTableStart = null;
-      state.hybridActiveLine = this.activeLine;
-      this.render({ focus: true });
+    if (event.key === "ArrowUp" || event.key === "ArrowDown") {
       return;
-    }
-
-    if (event.key === "ArrowDown" && lineIndex < this.lines.length - 1) {
-      event.preventDefault();
-      this.activeLine = lineIndex + 1;
-      this.editingCodeBlockStart = null;
-      this.editingTableStart = null;
-      state.hybridActiveLine = this.activeLine;
-      this.render({ focus: true });
     }
   }
 
@@ -2212,6 +2423,64 @@ function renderOutline() {
     button.addEventListener("click", () => jumpToHeading(heading));
     elements.outlineList.append(button);
   });
+}
+
+function setActiveHeadingId(headingId) {
+  if (!headingId || headingId === state.activeHeadingId) return;
+  state.activeHeadingId = headingId;
+  renderOutline();
+  updateStatus();
+}
+
+function headingFromPreviewScroll() {
+  const headings = [...elements.preview.querySelectorAll("h1, h2, h3")];
+  if (!headings.length) return null;
+
+  const paneRect = elements.previewPane.getBoundingClientRect();
+  const marker = paneRect.top + 96;
+  let activeElement = headings[0];
+
+  for (const headingElement of headings) {
+    if (headingElement.getBoundingClientRect().top <= marker) {
+      activeElement = headingElement;
+    } else {
+      break;
+    }
+  }
+
+  return state.headings.find((heading) => heading.id === activeElement.id) || null;
+}
+
+function headingFromWysiwygScroll() {
+  if (!state.wysiwyg || !state.headings.length) return null;
+
+  const rootRect = elements.wysiwygEditor.getBoundingClientRect();
+  const marker = rootRect.top + 96;
+  let activeHeading = state.headings[0];
+
+  for (const heading of state.headings) {
+    const target = state.wysiwyg.findElementForLine(heading.line);
+    if (!target) continue;
+    if (target.getBoundingClientRect().top <= marker) {
+      activeHeading = heading;
+    } else {
+      break;
+    }
+  }
+
+  return activeHeading;
+}
+
+function updateActiveHeadingFromVisibleScroll() {
+  const heading = state.preferences.viewMode === "wysiwyg"
+    ? headingFromWysiwygScroll()
+    : headingFromPreviewScroll();
+  if (heading) setActiveHeadingId(heading.id);
+}
+
+function scheduleActiveHeadingFromScroll() {
+  window.cancelAnimationFrame(state.activeHeadingScrollFrame);
+  state.activeHeadingScrollFrame = window.requestAnimationFrame(updateActiveHeadingFromVisibleScroll);
 }
 
 function renderRecentFiles() {
@@ -2565,6 +2834,7 @@ async function setViewMode(mode) {
     if (nextMode === "wysiwyg") {
       state.wysiwyg?.focus();
     }
+    window.requestAnimationFrame(scheduleActiveHeadingFromScroll);
   });
 }
 
@@ -2592,7 +2862,6 @@ function jumpToHeading(heading) {
 
   if (state.preferences.viewMode === "wysiwyg") {
     state.wysiwyg?.scrollToHeading(heading);
-    state.wysiwyg?.focus();
     return;
   }
 
@@ -3083,6 +3352,14 @@ function bindEvents() {
     if (!state.syncingPreviewScroll) {
       state.previewManualUntil = Date.now() + 1200;
     }
+    if (state.preferences.viewMode === "preview" || state.preferences.viewMode === "reading") {
+      scheduleActiveHeadingFromScroll();
+    }
+  });
+  elements.wysiwygEditor.addEventListener("scroll", () => {
+    if (state.preferences.viewMode === "wysiwyg") {
+      scheduleActiveHeadingFromScroll();
+    }
   });
 
   elements.newButton.addEventListener("click", newNote);
@@ -3098,7 +3375,7 @@ function bindEvents() {
     event.stopPropagation();
     openFileContextMenu();
   });
-  [elements.editor, elements.wysiwygEditor].forEach((editorSurface) => {
+  [elements.editor, elements.wysiwygEditor, elements.previewPane].forEach((editorSurface) => {
     editorSurface.addEventListener("contextmenu", (event) => {
       event.preventDefault();
       event.stopPropagation();
