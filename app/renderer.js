@@ -258,6 +258,135 @@ const translations = {
     restoreDraftDetail: "Restore the automatically saved draft?",
     restoreDraft: "Restore draft",
     discardDraft: "Discard draft"
+  },
+  ja: {
+    new: "新規",
+    open: "開く",
+    save: "保存",
+    saveAs: "名前を付けて保存",
+    exportPdf: "PDFを書き出す",
+    showInFolder: "フォルダで表示",
+    deleteFile: "ファイルを削除",
+    closeHelp: "ガイドを閉じる",
+    viewWysiwyg: "デフォルト",
+    viewEdit: "編集",
+    viewPreview: "プレビュー",
+    viewReading: "閲覧",
+    currentFileTitle: "現在のファイルと最近のファイル",
+    recentFiles: "最近使ったファイル",
+    noRecentFiles: "最近使ったファイルはまだありません",
+    fileMissing: "ファイルを開けなかったため、最近使った項目から削除しました",
+    currentFile: "現在のファイル",
+    rename: "名前を変更",
+    renameTitle: "ファイル名を変更",
+    renameHint: "新しいファイル名",
+    renameConfirm: "変更",
+    renameSuccess: "名前を変更しました",
+    renameUnavailable: "名前を変更する前にローカルファイルとして保存してください",
+    renameExists: "同じ名前のファイルが既に存在します",
+    renameInvalid: "有効なファイル名を入力してください",
+    settings: "設定",
+    outline: "目次",
+    language: "表示言語",
+    theme: "テーマ",
+    themeLight: "昼光",
+    themeDark: "夜",
+    themePaper: "紙",
+    themeForest: "森",
+    themeOcean: "海",
+    themeRose: "ローズ",
+    lineWrap: "自動折り返し",
+    taskBracketCompat: "タスク記号を自動変換",
+    tableBlock: "表",
+    exitTableEdit: "終了",
+    help: "使い方",
+    ai: "AI",
+    aiTitle: "AIアシスタントを開く",
+    aiAgent: "AI Agent",
+    aiCloseTitle: "AIを閉じる",
+    aiSettings: "AI設定",
+    aiProvider: "サービス",
+    aiModel: "モデル",
+    aiBaseUrl: "Base URL",
+    aiApiKey: "API Key",
+    aiQuickSummary: "要約",
+    aiQuickPolish: "推敲",
+    aiQuickOrganize: "整理",
+    aiQuickContinue: "続きを書く",
+    copySelection: "コピー",
+    cutSelection: "切り取り",
+    paste: "貼り付け",
+    bold: "太字",
+    italic: "斜体",
+    inlineCode: "インラインコード",
+    aiSelection: "AIで処理",
+    aiPolishSelection: "選択範囲をAIで推敲",
+    aiSummarySelection: "選択範囲をAIで要約",
+    aiSearchSelection: "選択範囲をAIで検索",
+    aiPromptPolishSelection: "以下の選択テキストだけを、意味を保ったまま読みやすく推敲してください:",
+    aiPromptSummarySelection: "以下の選択テキストだけを要約し、要点を抽出してください:",
+    aiPromptSearchSelection: "以下の選択テキストについてAI検索してください。関連概念を説明し、背景を補足し、次に調べる価値のあるキーワードを挙げてください:",
+    aiPlaceholder: "AIにこのノートの要約、推敲、整理を依頼",
+    aiSend: "送信",
+    aiThinking: "AIが考えています...",
+    aiMissingKey: "先に設定でAPI Keyを入力してください。",
+    aiError: "AIリクエストに失敗しました",
+    aiDraftReady: "変更案を作成しました",
+    aiApplyDraft: "変更を適用",
+    aiDiscardDraft: "破棄",
+    aiCopy: "結果をコピー",
+    aiCopied: "コピーしました",
+    aiApplied: "AIの変更を適用しました",
+    aiRestartRequired: "AI機能は更新されましたが、現在のアプリプロセスは古いバージョンです。MarkNoteを完全に終了してから新しいアプリを開き直してください。",
+    aiWelcome: "要約、推敲、構成整理、プレビュー可能な変更案の作成を手伝えます。",
+    aiPromptSummary: "このノートを要約し、要点とタスクを抽出してください。",
+    aiPromptPolish: "意味を保ったまま、このノートをより読みやすく推敲してください。",
+    aiPromptOrganize: "このノートを見出しと階層が分かりやすい構成に整理し、完全なMarkdown草案を返してください。",
+    aiPromptContinue: "現在の内容に続けて、同じ文体で続きを書き、完全なMarkdown草案を返してください。",
+    newTitle: "新規ノート",
+    openTitle: "Markdownファイルを開く",
+    saveTitle: "Markdownファイルを保存",
+    closeHelpTitle: "ガイドを閉じて前のノートに戻る",
+    helpTitle: "READMEガイドを開く",
+    viewModeTitle: "表示モードを切り替え",
+    themeTitle: "テーマを切り替え",
+    settingsTitle: "設定を開く",
+    edited: "編集中",
+    headings: "個の見出し",
+    noHeading: "見出しが選択されていません",
+    emptyOutline: "#、##、### の見出しを追加すると目次が作成されます。",
+    lines: "行",
+    words: "語",
+    characters: "文字",
+    untitled: "無題.md",
+    untitledHeading: "無題のノート",
+    startWriting: "ここから書き始めます。",
+    unsavedTitle: "未保存の変更",
+    unsavedMessage: "このノートには未保存の変更があります。",
+    unsavedDetail: "続行する前に変更を保存しますか？",
+    saveChanges: "保存",
+    discardChanges: "保存しない",
+    cancel: "キャンセル",
+    saveSuccess: "保存しました",
+    saveAsSuccess: "名前を付けて保存しました",
+    exportSuccess: "PDFを書き出しました",
+    deleteSuccess: "ファイルをゴミ箱に移動しました",
+    draftSaved: "下書きを保護しました",
+    saving: "保存中...",
+    saved: "保存済み",
+    dirtyStatus: "未保存の変更",
+    exportPdfUnavailable: "PDF書き出しはデスクトップ版で利用できます",
+    showUnavailable: "先にローカルファイルとして保存してください",
+    deleteUnavailable: "先にローカルファイルとして保存してください",
+    deleteTitle: "ファイルを削除",
+    deleteMessage: "現在のファイルをゴミ箱に移動しますか？",
+    deleteDetail: "エディタの内容は開いたままですが、ファイルは現在の場所からゴミ箱へ移動されます。",
+    deleteConfirm: "ゴミ箱へ移動",
+    restoreDraftTitle: "下書きを復元",
+    restoreDraftMessage: "前回の編集が保存されていない可能性があります。",
+    restoreDraftDetail: "自動保存された下書きを復元しますか？",
+    restoreDraft: "下書きを復元",
+    discardDraft: "下書きを破棄"
   }
 };
 
@@ -269,6 +398,18 @@ const platform = window.marknote?.platform || "browser";
 const isMac = platform === "darwin" || navigator.platform.toLowerCase().includes("mac");
 const themes = ["light", "dark", "paper", "forest", "ocean", "rose"];
 const viewModes = ["wysiwyg", "edit", "preview", "reading"];
+const languages = ["zh", "en", "ja"];
+const aiProviders = ["openai", "deepseek", "mimo"];
+const aiProviderLabels = {
+  openai: "OpenAI",
+  deepseek: "DeepSeek",
+  mimo: "MiMo"
+};
+const aiModelSuggestions = {
+  openai: ["gpt-4.1-mini"],
+  deepseek: ["deepseek-v4-flash"],
+  mimo: ["mimo-v2.5", "mimo-v2.5-pro", "mimo-v2-flash"]
+};
 
 const defaultPreferences = {
   theme: window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light",
@@ -282,15 +423,18 @@ const defaultAiSettings = {
   provider: "openai",
   models: {
     openai: "gpt-4.1-mini",
-    deepseek: "deepseek-v4-flash"
+    deepseek: "deepseek-v4-flash",
+    mimo: "mimo-v2.5"
   },
   baseUrls: {
     openai: "https://api.openai.com/v1",
-    deepseek: "https://api.deepseek.com"
+    deepseek: "https://api.deepseek.com",
+    mimo: "https://api.mimo-v2.com/v1"
   },
   apiKeys: {
     openai: "",
-    deepseek: ""
+    deepseek: "",
+    mimo: ""
   }
 };
 
@@ -374,7 +518,7 @@ const elements = {
   aiInput: document.querySelector("#aiInput"),
   aiSendButton: document.querySelector("#aiSendButton"),
   aiProviderSelect: document.querySelector("#aiProviderSelect"),
-  aiModelInput: document.querySelector("#aiModelInput"),
+  aiModelSelect: document.querySelector("#aiModelSelect"),
   aiBaseUrlInput: document.querySelector("#aiBaseUrlInput"),
   aiApiKeyInput: document.querySelector("#aiApiKeyInput"),
   aiModelBadge: document.querySelector("#aiModelBadge"),
@@ -791,7 +935,7 @@ function loadPreferences() {
       theme: themes.includes(migratedTheme) ? migratedTheme : defaultPreferences.theme,
       viewMode: viewModes.includes(migratedViewMode) ? migratedViewMode : defaultPreferences.viewMode,
       taskBracketCompat: saved.taskBracketCompat ?? defaultPreferences.taskBracketCompat,
-      language: saved.language === "en" ? "en" : "zh"
+      language: languages.includes(saved.language) ? saved.language : defaultPreferences.language
     };
   } catch {
     return { ...defaultPreferences };
@@ -801,7 +945,7 @@ function loadPreferences() {
 function loadAiSettings() {
   try {
     const saved = JSON.parse(localStorage.getItem(aiSettingsKey) || "{}");
-    const provider = saved.provider === "deepseek" ? "deepseek" : "openai";
+    const provider = aiProviders.includes(saved.provider) ? saved.provider : defaultAiSettings.provider;
     return {
       provider,
       models: {
@@ -837,7 +981,7 @@ function saveAiSettings() {
 }
 
 function currentAiProvider() {
-  return state.aiSettings.provider === "deepseek" ? "deepseek" : "openai";
+  return aiProviders.includes(state.aiSettings.provider) ? state.aiSettings.provider : defaultAiSettings.provider;
 }
 
 function currentAiModel() {
@@ -855,7 +999,7 @@ function currentAiBaseUrl() {
 }
 
 function setAiProvider(provider) {
-  state.aiSettings.provider = provider === "deepseek" ? "deepseek" : "openai";
+  state.aiSettings.provider = aiProviders.includes(provider) ? provider : defaultAiSettings.provider;
   saveAiSettings();
   render();
 }
@@ -954,11 +1098,17 @@ function renderAiPanel() {
   elements.aiPane.hidden = !state.aiOpen;
   elements.aiToggle.classList.toggle("active", state.aiOpen);
   elements.aiProviderSelect.value = currentAiProvider();
-  elements.aiModelInput.value = currentAiModel();
+  const model = currentAiModel();
+  const suggestions = aiModelSuggestions[currentAiProvider()] || [];
+  const modelOptions = suggestions.includes(model) ? suggestions : [model, ...suggestions];
+  elements.aiModelSelect.innerHTML = modelOptions
+    .map((optionModel) => `<option value="${escapeHtml(optionModel)}">${escapeHtml(optionModel)}</option>`)
+    .join("");
+  elements.aiModelSelect.value = model;
   elements.aiBaseUrlInput.value = currentAiBaseUrl();
   elements.aiBaseUrlInput.disabled = state.aiLoading;
   elements.aiApiKeyInput.value = currentAiKey();
-  elements.aiModelBadge.textContent = `${currentAiProvider() === "openai" ? "OpenAI" : "DeepSeek"} · ${currentAiModel()}`;
+  elements.aiModelBadge.textContent = `${aiProviderLabels[currentAiProvider()] || "AI"} · ${currentAiModel()}`;
   elements.aiSendButton.disabled = state.aiLoading;
   elements.aiInput.disabled = state.aiLoading;
   elements.aiPane.querySelectorAll(".aiQuickActions button").forEach((button) => {
@@ -1631,6 +1781,7 @@ class LinewiseMarkdownEditor {
   bindSelectionScrollGuard() {
     this.root.addEventListener("mousedown", (event) => {
       if (event.button !== 0) return;
+      if (isNativeScrollbarPointerDown(event, this.root)) return;
       this.selectionScrollGuard.active = true;
       this.selectionScrollGuard.lastScrollTop = this.root.scrollTop;
       this.selectionScrollGuard.pointerY = event.clientY;
@@ -2279,6 +2430,7 @@ function bindTextareaSelectionScrollGuard(textarea) {
 
   textarea.addEventListener("mousedown", (event) => {
     if (event.button !== 0) return;
+    if (isNativeScrollbarPointerDown(event, textarea)) return;
     guard.active = true;
     guard.lastScrollTop = textarea.scrollTop;
     guard.pointerY = event.clientY;
@@ -2326,6 +2478,22 @@ function bindTextareaSelectionScrollGuard(textarea) {
 
     guard.frame = window.requestAnimationFrame(limitScrollStep);
   }
+}
+
+function isNativeScrollbarPointerDown(event, element) {
+  const rect = element.getBoundingClientRect();
+  const verticalScrollbarWidth = element.offsetWidth - element.clientWidth;
+  const horizontalScrollbarHeight = element.offsetHeight - element.clientHeight;
+  const onVerticalScrollbar =
+    verticalScrollbarWidth > 0 &&
+    element.scrollHeight > element.clientHeight &&
+    event.clientX >= rect.right - verticalScrollbarWidth;
+  const onHorizontalScrollbar =
+    horizontalScrollbarHeight > 0 &&
+    element.scrollWidth > element.clientWidth &&
+    event.clientY >= rect.bottom - horizontalScrollbarHeight;
+
+  return onVerticalScrollbar || onHorizontalScrollbar;
 }
 
 async function initWysiwygEditor() {
@@ -2423,6 +2591,8 @@ function renderOutline() {
     button.addEventListener("click", () => jumpToHeading(heading));
     elements.outlineList.append(button);
   });
+
+  keepActiveOutlineItemVisible();
 }
 
 function setActiveHeadingId(headingId) {
@@ -2430,6 +2600,37 @@ function setActiveHeadingId(headingId) {
   state.activeHeadingId = headingId;
   renderOutline();
   updateStatus();
+}
+
+function keepActiveOutlineItemVisible() {
+  const activeItem = elements.outlineList.querySelector(".outlineItem.active");
+  if (!activeItem) return;
+
+  activeItem.scrollIntoView({
+    block: "nearest",
+    inline: "nearest"
+  });
+}
+
+function headingFromEditorScroll() {
+  if (!state.headings.length) return null;
+
+  const editorStyle = window.getComputedStyle(elements.editor);
+  const lineHeight = Number.parseFloat(editorStyle.lineHeight) || 24;
+  const paddingTop = Number.parseFloat(editorStyle.paddingTop) || 0;
+  const markerOffset = Math.max(0, elements.editor.scrollTop + 96 - paddingTop);
+  const markerLine = Math.floor(markerOffset / lineHeight);
+  let activeHeading = state.headings[0];
+
+  for (const heading of state.headings) {
+    if (heading.line <= markerLine) {
+      activeHeading = heading;
+    } else {
+      break;
+    }
+  }
+
+  return activeHeading;
 }
 
 function headingFromPreviewScroll() {
@@ -2474,7 +2675,9 @@ function headingFromWysiwygScroll() {
 function updateActiveHeadingFromVisibleScroll() {
   const heading = state.preferences.viewMode === "wysiwyg"
     ? headingFromWysiwygScroll()
-    : headingFromPreviewScroll();
+    : state.preferences.viewMode === "edit"
+      ? headingFromEditorScroll()
+      : headingFromPreviewScroll();
   if (heading) setActiveHeadingId(heading.id);
 }
 
@@ -2778,7 +2981,7 @@ function setPreference(key, value) {
 }
 
 function setLanguage(language) {
-  setPreference("language", language === "en" ? "en" : "zh");
+  setPreference("language", languages.includes(language) ? language : defaultPreferences.language);
 }
 
 function capitalize(value) {
@@ -3345,7 +3548,12 @@ function bindEvents() {
     scheduleDraftSave();
   });
 
-  elements.editor.addEventListener("scroll", syncPreviewScroll);
+  elements.editor.addEventListener("scroll", () => {
+    syncPreviewScroll();
+    if (state.preferences.viewMode === "edit") {
+      scheduleActiveHeadingFromScroll();
+    }
+  });
   bindTextareaSelectionScrollGuard(elements.editor);
 
   elements.previewPane.addEventListener("scroll", () => {
@@ -3467,7 +3675,7 @@ function bindEvents() {
   elements.aiProviderSelect.addEventListener("change", (event) => {
     setAiProvider(event.target.value);
   });
-  elements.aiModelInput.addEventListener("change", (event) => {
+  elements.aiModelSelect.addEventListener("change", (event) => {
     setAiModel(event.target.value);
   });
   elements.aiBaseUrlInput.addEventListener("change", (event) => {

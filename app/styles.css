@@ -1274,8 +1274,7 @@ button {
 .mathInline {
   display: inline-block;
   max-width: 100%;
-  overflow-x: auto;
-  overflow-y: hidden;
+  overflow: visible;
   vertical-align: -0.18em;
 }
 

@@ -269,7 +269,7 @@ ipcMain.handle("ai:complete", async (_event, payload) => {
   try {
     const content = request.provider === "deepseek"
       ? await callDeepSeek(request)
-      : await callOpenAI(request);
+      : await callOpenAICompatible(request);
 
     return {
       ok: true,
@@ -307,7 +307,7 @@ ipcMain.handle("ai:stream", async (event, message) => {
           raw += delta;
           send("ai:stream-delta", { text: extractPartialJsonStringField(raw, "message") || raw });
         })
-      : await callOpenAIStream(request, (delta) => {
+      : await callOpenAICompatibleStream(request, (delta) => {
           raw += delta;
           send("ai:stream-delta", { text: extractPartialJsonStringField(raw, "message") || raw });
         });
@@ -325,15 +325,32 @@ ipcMain.handle("ai:stream", async (event, message) => {
   }
 });
 
+const aiProviders = ["openai", "deepseek", "mimo"];
+const aiProviderLabels = {
+  openai: "OpenAI",
+  deepseek: "DeepSeek",
+  mimo: "MiMo"
+};
+const defaultAiModels = {
+  openai: "gpt-4.1-mini",
+  deepseek: "deepseek-v4-flash",
+  mimo: "mimo-v2.5"
+};
+const defaultAiBaseUrls = {
+  openai: "https://api.openai.com/v1",
+  deepseek: "https://api.deepseek.com",
+  mimo: "https://api.mimo-v2.com/v1"
+};
+
 function buildAiRequest(payload) {
-  const provider = payload?.provider === "deepseek" ? "deepseek" : "openai";
+  const provider = aiProviders.includes(payload?.provider) ? payload.provider : "openai";
   const apiKey = String(payload?.apiKey || "").trim();
-  const model = String(payload?.model || "").trim() || (provider === "deepseek" ? "deepseek-v4-flash" : "gpt-4.1-mini");
+  const model = String(payload?.model || "").trim() || defaultAiModels[provider];
   const baseUrl = normalizeChatBaseUrl(payload?.baseUrl, provider);
 
   const systemPrompt = [
     "You are MarkNote Agent, a careful Markdown note assistant.",
-    `Current provider: ${provider === "deepseek" ? "DeepSeek" : "OpenAI"}.`,
+    `Current provider: ${aiProviderLabels[provider]}.`,
     `Current model: ${model}.`,
     "If you mention your model or provider, use only the current provider/model above and do not claim to be a different model.",
     "You help summarize, polish, continue, and restructure the user's current Markdown note.",
@@ -426,13 +443,13 @@ function escapeAttribute(value) {
 }
 
 function normalizeChatBaseUrl(baseUrl, provider) {
-  const fallback = provider === "deepseek" ? "https://api.deepseek.com" : "https://api.openai.com/v1";
+  const fallback = defaultAiBaseUrls[provider] || defaultAiBaseUrls.openai;
   const raw = String(baseUrl || fallback).trim() || fallback;
   const withoutTrailingSlash = raw.replace(/\/+$/, "");
   return withoutTrailingSlash.replace(/\/chat\/completions$/i, "");
 }
 
-async function callOpenAI({ apiKey, model, baseUrl, systemPrompt, userPrompt }) {
+async function callOpenAICompatible({ apiKey, model, baseUrl, systemPrompt, userPrompt, provider }) {
   const response = await fetch(`${baseUrl}/chat/completions`, {
     method: "POST",
     headers: {
@@ -451,7 +468,7 @@ async function callOpenAI({ apiKey, model, baseUrl, systemPrompt, userPrompt }) 
 
   const data = await response.json().catch(() => ({}));
   if (!response.ok) {
-    const error = new Error(data?.error?.message || `OpenAI request failed (${response.status})`);
+    const error = new Error(data?.error?.message || `${aiProviderLabels[provider] || "AI"} request failed (${response.status})`);
     error.code = response.status === 401 ? "auth-failed" : "request-failed";
     throw error;
   }
@@ -459,7 +476,7 @@ async function callOpenAI({ apiKey, model, baseUrl, systemPrompt, userPrompt }) 
   return data?.choices?.[0]?.message?.content || "";
 }
 
-async function callOpenAIStream({ apiKey, model, baseUrl, systemPrompt, userPrompt }, onDelta) {
+async function callOpenAICompatibleStream({ apiKey, model, baseUrl, systemPrompt, userPrompt, provider }, onDelta) {
   const response = await fetch(`${baseUrl}/chat/completions`, {
     method: "POST",
     headers: {
@@ -479,7 +496,7 @@ async function callOpenAIStream({ apiKey, model, baseUrl, systemPrompt, userProm
 
   if (!response.ok) {
     const data = await response.json().catch(() => ({}));
-    const error = new Error(data?.error?.message || `OpenAI request failed (${response.status})`);
+    const error = new Error(data?.error?.message || `${aiProviderLabels[provider] || "AI"} request failed (${response.status})`);
     error.code = response.status === 401 ? "auth-failed" : "request-failed";
     throw error;
   }
