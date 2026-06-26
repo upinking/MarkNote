@@ -1,8 +1,13 @@
 const { app, BrowserWindow, dialog, ipcMain, shell } = require("electron");
+const crypto = require("node:crypto");
+const http = require("node:http");
+const os = require("node:os");
 const path = require("node:path");
 const fs = require("node:fs/promises");
 
 let isQuitting = false;
+let lanSyncServer = null;
+let lanSyncState = null;
 const appIconPath = path.join(__dirname, "../build/icon.png");
 
 function createWindow() {
@@ -55,7 +60,223 @@ app.on("window-all-closed", () => {
 
 app.on("before-quit", () => {
   isQuitting = true;
+  stopLanSyncServer();
 });
+
+ipcMain.handle("lan-sync:start", async (_event, payload) => {
+  stopLanSyncServer();
+
+  const code = String(crypto.randomInt(100000, 1000000));
+  const notes = normalizeLanNotes(payload?.notes);
+  const server = http.createServer((request, response) => {
+    handleLanSyncRequest(request, response, code);
+  });
+
+  await new Promise((resolve, reject) => {
+    server.once("error", reject);
+    server.listen(0, "0.0.0.0", () => {
+      server.off("error", reject);
+      resolve();
+    });
+  });
+
+  const { port } = server.address();
+  lanSyncServer = server;
+  lanSyncState = {
+    code,
+    port,
+    notes,
+    urls: lanSyncUrls(port)
+  };
+
+  return lanSyncPublicState();
+});
+
+ipcMain.handle("lan-sync:update", async (_event, payload) => {
+  if (!lanSyncState) return null;
+  lanSyncState.notes = normalizeLanNotes(payload?.notes);
+  return lanSyncPublicState();
+});
+
+ipcMain.handle("lan-sync:stop", async () => {
+  stopLanSyncServer();
+  return { running: false };
+});
+
+ipcMain.handle("lan-sync:status", async () => lanSyncPublicState());
+
+function normalizeLanNotes(notes = []) {
+  return (Array.isArray(notes) ? notes : []).map((note, index) => {
+    const now = new Date().toISOString();
+    const title = String(note?.title || note?.fileName || `MarkNote-${index + 1}`).slice(0, 120);
+    return {
+      id: String(note?.id || `note-${index + 1}`),
+      title,
+      content: String(note?.content || ""),
+      fileName: sanitizeFileName(note?.fileName || `${title || "MarkNote"}.md`),
+      filePath: String(note?.filePath || ""),
+      created_at: note?.created_at || now,
+      updated_at: note?.updated_at || now,
+      deleted_at: null
+    };
+  });
+}
+
+function lanSyncPublicState() {
+  if (!lanSyncState) return { running: false, urls: [], code: "" };
+  return {
+    running: true,
+    urls: lanSyncState.urls,
+    code: lanSyncState.code,
+    noteCount: lanSyncState.notes.length
+  };
+}
+
+function lanSyncUrls(port) {
+  const urls = [];
+  const networks = os.networkInterfaces();
+  Object.values(networks).flat().forEach((network) => {
+    if (!network || network.family !== "IPv4" || network.internal) return;
+    urls.push(`http://${network.address}:${port}`);
+  });
+  return urls.length ? urls : [`http://127.0.0.1:${port}`];
+}
+
+function stopLanSyncServer() {
+  if (lanSyncServer) {
+    lanSyncServer.close();
+  }
+  lanSyncServer = null;
+  lanSyncState = null;
+}
+
+async function handleLanSyncRequest(request, response, code) {
+  setCorsHeaders(response);
+  if (request.method === "OPTIONS") {
+    response.writeHead(204);
+    response.end();
+    return;
+  }
+
+  const url = new URL(request.url || "/", `http://${request.headers.host || "localhost"}`);
+  if (url.pathname === "/") {
+    sendJson(response, 200, { ok: true, app: "MarkNote", message: "MarkNote LAN sync is running" });
+    return;
+  }
+
+  const requestCode = url.searchParams.get("code") || request.headers["x-marknote-sync-code"];
+  if (requestCode !== code) {
+    sendJson(response, 403, { ok: false, error: "同步码不正确" });
+    return;
+  }
+
+  if (request.method === "GET" && url.pathname === "/notes") {
+    sendJson(response, 200, {
+      ok: true,
+      notes: lanSyncState.notes.map(publicLanNote)
+    });
+    return;
+  }
+
+  const noteMatch = url.pathname.match(/^\/notes\/([^/]+)$/);
+  if (request.method === "POST" && noteMatch) {
+    await receiveLanNote(request, response, decodeURIComponent(noteMatch[1]));
+    return;
+  }
+
+  sendJson(response, 404, { ok: false, error: "未找到同步接口" });
+}
+
+async function receiveLanNote(request, response, noteId) {
+  try {
+    const body = await readJsonBody(request);
+    const note = lanSyncState.notes.find((item) => item.id === noteId) || {
+      id: noteId,
+      title: "",
+      fileName: "",
+      filePath: "",
+      created_at: new Date().toISOString()
+    };
+    const updatedNote = {
+      ...note,
+      title: String(body?.title || note.title || "未命名笔记").slice(0, 120),
+      content: String(body?.content || ""),
+      fileName: sanitizeFileName(body?.fileName || note.fileName || `${body?.title || note.title || "未命名笔记"}.md`),
+      updated_at: body?.updated_at || new Date().toISOString(),
+      deleted_at: null
+    };
+
+    if (!updatedNote.filePath) {
+      const inboxDir = path.join(app.getPath("documents"), "MarkNote Sync");
+      await fs.mkdir(inboxDir, { recursive: true });
+      updatedNote.filePath = path.join(inboxDir, updatedNote.fileName);
+    }
+
+    await fs.writeFile(updatedNote.filePath, updatedNote.content, "utf8");
+    lanSyncState.notes = [
+      updatedNote,
+      ...lanSyncState.notes.filter((item) => item.id !== updatedNote.id)
+    ];
+
+    BrowserWindow.getAllWindows().forEach((win) => {
+      win.webContents.send("lan-sync:note-updated", publicLanNote(updatedNote));
+    });
+
+    sendJson(response, 200, { ok: true, note: publicLanNote(updatedNote) });
+  } catch (error) {
+    sendJson(response, 400, { ok: false, error: error?.message || "无法保存手机回传的笔记" });
+  }
+}
+
+function publicLanNote(note) {
+  return {
+    id: note.id,
+    title: note.title,
+    content: note.content,
+    fileName: note.fileName,
+    created_at: note.created_at,
+    updated_at: note.updated_at,
+    deleted_at: note.deleted_at || null
+  };
+}
+
+function sanitizeFileName(value) {
+  const name = String(value || "MarkNote.md").replace(/[\\/:*?"<>|]/g, "-").trim() || "MarkNote.md";
+  return path.extname(name) ? name : `${name}.md`;
+}
+
+function setCorsHeaders(response) {
+  response.setHeader("Access-Control-Allow-Origin", "*");
+  response.setHeader("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
+  response.setHeader("Access-Control-Allow-Headers", "Content-Type,X-MarkNote-Sync-Code");
+}
+
+function sendJson(response, statusCode, payload) {
+  response.writeHead(statusCode, { "Content-Type": "application/json; charset=utf-8" });
+  response.end(JSON.stringify(payload));
+}
+
+function readJsonBody(request) {
+  return new Promise((resolve, reject) => {
+    let raw = "";
+    request.setEncoding("utf8");
+    request.on("data", (chunk) => {
+      raw += chunk;
+      if (raw.length > 8 * 1024 * 1024) {
+        reject(new Error("笔记太大，无法通过局域网同步"));
+        request.destroy();
+      }
+    });
+    request.on("end", () => {
+      try {
+        resolve(raw ? JSON.parse(raw) : {});
+      } catch {
+        reject(new Error("手机发送的数据不是有效 JSON"));
+      }
+    });
+    request.on("error", reject);
+  });
+}
 
 ipcMain.handle("file:open", async () => {
   const result = await dialog.showOpenDialog({
@@ -273,7 +494,7 @@ ipcMain.handle("ai:complete", async (_event, payload) => {
 
     return {
       ok: true,
-      ...normalizeAiContent(content)
+      ...normalizeAiContent(content, { needsDraft: request.needsDraft })
     };
   } catch (error) {
     return {
@@ -315,7 +536,7 @@ ipcMain.handle("ai:stream", async (event, message) => {
     send("ai:stream-done", {
       result: {
         ok: true,
-        ...normalizeAiContent(content)
+        ...normalizeAiContent(content, { needsDraft: request.needsDraft })
       }
     });
   } catch (error) {
@@ -347,6 +568,8 @@ function buildAiRequest(payload) {
   const apiKey = String(payload?.apiKey || "").trim();
   const model = String(payload?.model || "").trim() || defaultAiModels[provider];
   const baseUrl = normalizeChatBaseUrl(payload?.baseUrl, provider);
+  const instruction = String(payload?.instruction || "");
+  const needsDraft = aiRequestNeedsDraft(instruction);
 
   const systemPrompt = [
     "You are MarkNote Agent, a careful Markdown note assistant.",
@@ -358,19 +581,24 @@ function buildAiRequest(payload) {
     "Always respond as strict JSON with this shape:",
     "{\"type\":\"reply\"|\"draft\",\"message\":\"short explanation\",\"markdown\":\"complete markdown when type is draft, otherwise empty string\"}.",
     "Use type=\"draft\" only when the user asks you to modify, rewrite, polish, continue, organize, restructure, or generate a replacement note.",
-    "When type=\"draft\", markdown must be the complete new Markdown document, not a patch and not a fragment."
+    "For requests to fix, convert, or correct math, formulas, LaTeX, code fences, or Markdown syntax, use type=\"draft\".",
+    "When type=\"draft\", markdown must be the complete new Markdown document, not a patch and not a fragment.",
+    "When type=\"draft\", the message should say that a previewable draft is ready, not that edits were applied.",
+    needsDraft
+      ? "The current user request is an edit request. You must return type=\"draft\" with the full replacement Markdown document. Do not return only an explanation."
+      : "The current user request appears to be a question. Use type=\"reply\" unless the user explicitly asks for a replacement note."
   ].join("\n");
 
   const userPrompt = [
     `File name: ${payload?.fileName || "Untitled.md"}`,
-    `User request: ${payload?.instruction || ""}`,
+    `User request: ${instruction}`,
     "Recent conversation:",
     JSON.stringify((payload?.messages || []).slice(-8)),
     "Current Markdown:",
     payload?.markdown || ""
   ].join("\n\n");
 
-  return { provider, apiKey, model, baseUrl, systemPrompt, userPrompt };
+  return { provider, apiKey, model, baseUrl, systemPrompt, userPrompt, needsDraft };
 }
 
 ipcMain.handle("dialog:confirm-draft-restore", async (event, payload) => {
@@ -607,25 +835,91 @@ function collectResponseText(data) {
     .trim();
 }
 
-function normalizeAiContent(content) {
+function aiRequestNeedsDraft(instruction) {
+  const text = String(instruction || "").trim();
+  if (!text) return false;
+
+  const englishEditIntent = /\b(modify|rewrite|polish|continue|organize|restructure|replace|convert|correct|fix|repair|apply|update)\b/i;
+  const chineseEditIntent =
+    /(?:帮我|请|麻烦|那你).{0,20}(?:修改|改写|改成|改为|改对|改正|修正|修复|纠正|替换|转换|转成|润色|续写|整理|重构|优化|生成)|(?:把|将).{0,80}(?:改成|改为|改对|改正|修正|修复|纠正|替换|转换|转成|润色|整理|重构|优化)/;
+
+  return englishEditIntent.test(text) || chineseEditIntent.test(text);
+}
+
+function normalizeAiContent(content, options = {}) {
   const raw = String(content || "").trim();
-  const jsonText = raw.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/i, "").trim();
+  const jsonText = extractAiJsonText(raw);
 
   try {
     const parsed = JSON.parse(jsonText);
-    const type = parsed.type === "draft" ? "draft" : "reply";
+    const parsedMarkdown = String(parsed.markdown || "");
+    const type = parsed.type === "draft" || (options.needsDraft && parsedMarkdown.trim()) ? "draft" : "reply";
+    if (options.needsDraft && !parsedMarkdown.trim()) {
+      return {
+        type: "reply",
+        message: missingDraftMessage(String(parsed.message || raw).trim()),
+        markdown: ""
+      };
+    }
+
     return {
       type,
       message: String(parsed.message || "").trim() || (type === "draft" ? "已生成修改草案。" : raw),
-      markdown: type === "draft" ? String(parsed.markdown || "") : ""
+      markdown: type === "draft" ? parsedMarkdown : ""
     };
   } catch {
+    if (options.needsDraft) {
+      return {
+        type: "reply",
+        message: missingDraftMessage(raw),
+        markdown: ""
+      };
+    }
+
     return {
       type: "reply",
       message: raw || "AI 没有返回内容。",
       markdown: ""
     };
   }
+}
+
+function extractAiJsonText(raw) {
+  const trimmed = String(raw || "").trim();
+  const unfenced = trimmed.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/i, "").trim();
+  if (unfenced.startsWith("{")) return unfenced;
+
+  const start = trimmed.indexOf("{");
+  if (start < 0) return unfenced;
+
+  let depth = 0;
+  let inString = false;
+  let escaped = false;
+  for (let index = start; index < trimmed.length; index += 1) {
+    const char = trimmed[index];
+    if (escaped) {
+      escaped = false;
+    } else if (char === "\\") {
+      escaped = true;
+    } else if (char === "\"") {
+      inString = !inString;
+    } else if (!inString && char === "{") {
+      depth += 1;
+    } else if (!inString && char === "}") {
+      depth -= 1;
+      if (depth === 0) {
+        return trimmed.slice(start, index + 1);
+      }
+    }
+  }
+
+  return unfenced;
+}
+
+function missingDraftMessage(message) {
+  const detail = String(message || "").trim();
+  const prefix = "AI 只返回了说明，没有返回可应用的完整 Markdown 草案，所以当前笔记还没有被修改。请再试一次，或明确要求它“返回完整 Markdown 草案”。";
+  return detail ? `${prefix}\n\n原回复：${detail}` : prefix;
 }
 
 function extractPartialJsonStringField(jsonText, fieldName) {

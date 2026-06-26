@@ -10,7 +10,11 @@
     "build": "electron-builder",
     "package:mac": "npm run build:wysiwyg && node scripts/package-macos.cjs",
     "start": "npm run build:wysiwyg && electron .",
-    "prebuild": "npm run build:wysiwyg"
+    "prebuild": "npm run build:wysiwyg",
+    "mobile:dev": "vite --config vite.mobile.config.mjs",
+    "mobile:build": "vite build --config vite.mobile.config.mjs",
+    "mobile:sync": "npm run mobile:build && cap sync android",
+    "mobile:open": "cap open android"
   },
   "build": {
     "appId": "com.codex.marknote",
@@ -36,6 +40,9 @@
     "electron-builder": "^25.1.8"
   },
   "dependencies": {
+    "@capacitor/android": "^8.3.4",
+    "@capacitor/cli": "^8.3.4",
+    "@capacitor/core": "^8.3.4",
     "@milkdown/crepe": "^7.21.1",
     "@milkdown/kit": "^7.21.1",
     "dompurify": "^3.4.5",

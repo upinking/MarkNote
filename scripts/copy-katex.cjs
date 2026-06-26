@@ -14,5 +14,18 @@ fs.rmSync(target, { recursive: true, force: true });
 fs.mkdirSync(target, { recursive: true });
 
 for (const name of ["katex.min.js", "katex.min.css", "fonts"]) {
-  fs.cpSync(path.join(source, name), path.join(target, name), { recursive: true });
+  copyRecursive(path.join(source, name), path.join(target, name));
+}
+
+function copyRecursive(from, to) {
+  const stat = fs.statSync(from);
+  if (!stat.isDirectory()) {
+    fs.copyFileSync(from, to);
+    return;
+  }
+
+  fs.mkdirSync(to, { recursive: true });
+  for (const entry of fs.readdirSync(from)) {
+    copyRecursive(path.join(from, entry), path.join(to, entry));
+  }
 }

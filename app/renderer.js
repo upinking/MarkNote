@@ -71,6 +71,8 @@ const translations = {
     aiPlaceholder: "让 AI 帮你总结、润色或整理这篇笔记",
     aiSend: "发送",
     aiThinking: "AI 正在思考...",
+    aiThinkingStatus: "AI 正在思考",
+    aiWritingDraft: "AI 正在生成修改草案",
     aiMissingKey: "请先在设置里填写 API Key。",
     aiError: "AI 请求失败",
     aiDraftReady: "已生成修改草案",
@@ -200,6 +202,8 @@ const translations = {
     aiPlaceholder: "Ask AI to summarize, polish, or organize this note",
     aiSend: "Send",
     aiThinking: "AI is thinking...",
+    aiThinkingStatus: "AI is thinking",
+    aiWritingDraft: "AI is drafting changes",
     aiMissingKey: "Add an API key in Settings first.",
     aiError: "AI request failed",
     aiDraftReady: "Draft changes are ready",
@@ -329,6 +333,8 @@ const translations = {
     aiPlaceholder: "AIにこのノートの要約、推敲、整理を依頼",
     aiSend: "送信",
     aiThinking: "AIが考えています...",
+    aiThinkingStatus: "AIが考えています",
+    aiWritingDraft: "AIが変更案を作成中",
     aiMissingKey: "先に設定でAPI Keyを入力してください。",
     aiError: "AIリクエストに失敗しました",
     aiDraftReady: "変更案を作成しました",
@@ -394,6 +400,7 @@ const preferenceKey = "marknote.preferences.v1";
 const recentFilesKey = "marknote.recentFiles.v1";
 const draftKey = "marknote.autosavedDraft.v1";
 const aiSettingsKey = "marknote.aiSettings.v1";
+const cloudSettingsKey = "marknote.cloudSettings.v1";
 const platform = window.marknote?.platform || "browser";
 const isMac = platform === "darwin" || navigator.platform.toLowerCase().includes("mac");
 const themes = ["light", "dark", "paper", "forest", "ocean", "rose"];
@@ -438,6 +445,11 @@ const defaultAiSettings = {
   }
 };
 
+const defaultCloudSettings = {
+  lastUrl: "",
+  lastCode: ""
+};
+
 const state = {
   markdown: starterMarkdown,
   savedMarkdown: starterMarkdown,
@@ -463,12 +475,18 @@ const state = {
   aiOpen: false,
   aiPreviousViewMode: "",
   aiLoading: false,
+  aiWorkingLabel: "",
   aiMessages: [],
   aiSettings: loadAiSettings(),
+  cloudSettings: loadCloudSettings(),
+  cloudSession: null,
+  cloudStatus: "局域网同步未开启",
   settingsOpen: false,
+  settingsPage: "main",
   syncingPreviewScroll: false,
   previewManualUntil: 0,
-  activeHeadingScrollFrame: 0
+  activeHeadingScrollFrame: 0,
+  outlineAnimationTimer: 0
 };
 
 const elements = {
@@ -521,9 +539,25 @@ const elements = {
   aiModelSelect: document.querySelector("#aiModelSelect"),
   aiBaseUrlInput: document.querySelector("#aiBaseUrlInput"),
   aiApiKeyInput: document.querySelector("#aiApiKeyInput"),
+  cloudUrlInput: document.querySelector("#cloudUrlInput"),
+  cloudAnonKeyInput: document.querySelector("#cloudAnonKeyInput"),
+  cloudSignInButton: document.querySelector("#cloudSignInButton"),
+  cloudSignUpButton: document.querySelector("#cloudSignUpButton"),
+  cloudLocalOnlyButton: document.querySelector("#cloudLocalOnlyButton"),
+  cloudUploadButton: document.querySelector("#cloudUploadButton"),
+  cloudStatus: document.querySelector("#cloudStatus"),
   aiModelBadge: document.querySelector("#aiModelBadge"),
   settingsToggle: document.querySelector("#settingsToggle"),
   settingsPanel: document.querySelector("#settingsPanel"),
+  settingsBackButton: document.querySelector("#settingsBackButton"),
+  settingsTitle: document.querySelector("#settingsTitle"),
+  settingsMainPage: document.querySelector("#settingsMainPage"),
+  cloudSettingsPage: document.querySelector("#cloudSettingsPage"),
+  aiSettingsPage: document.querySelector("#aiSettingsPage"),
+  cloudSettingsNavButton: document.querySelector("#cloudSettingsNavButton"),
+  aiSettingsNavButton: document.querySelector("#aiSettingsNavButton"),
+  cloudSettingsSummary: document.querySelector("#cloudSettingsSummary"),
+  aiSettingsSummary: document.querySelector("#aiSettingsSummary"),
   languageSelect: document.querySelector("#languageSelect"),
   themeSelect: document.querySelector("#themeSelect"),
   wrapSetting: document.querySelector("#wrapSetting"),
@@ -694,6 +728,12 @@ function closestEditableLine(node) {
     : node?.parentElement?.closest(".hybridSourceLine");
 }
 
+function closestHybridLine(node) {
+  return node?.nodeType === Node.ELEMENT_NODE
+    ? node.closest(".hybridLine")
+    : node?.parentElement?.closest(".hybridLine");
+}
+
 function selectionOffsetsWithin(node, range) {
   const startProbe = range.cloneRange();
   startProbe.selectNodeContents(node);
@@ -707,6 +747,13 @@ function selectionOffsetsWithin(node, range) {
     start: startProbe.toString().length,
     end: endProbe.toString().length
   };
+}
+
+function boundaryOffsetWithin(node, container, offset) {
+  const probe = document.createRange();
+  probe.selectNodeContents(node);
+  probe.setEnd(container, offset);
+  return probe.toString().length;
 }
 
 function selectedTextareaInfo(target) {
@@ -724,14 +771,83 @@ function selectedTextareaInfo(target) {
   };
 }
 
+function renderedSelectionText(range) {
+  const fragment = range.cloneContents();
+
+  fragment.querySelectorAll(".mathInline, .mathBlock").forEach((wrapper) => {
+    const source = wrapper.dataset.mathSource
+      || wrapper.querySelector('annotation[encoding="application/x-tex"]')?.textContent?.trim();
+    if (!source) return;
+    const math = wrapper.classList.contains("mathBlock")
+      ? `$$\n${source}\n$$`
+      : `$${source}$`;
+    wrapper.replaceWith(document.createTextNode(math));
+  });
+
+  fragment.querySelectorAll(".katex").forEach((renderedMath) => {
+    const source = renderedMath.querySelector('annotation[encoding="application/x-tex"]')?.textContent?.trim();
+    if (!source) return;
+    const math = renderedMath.closest(".katex-display")
+      ? `$$\n${source}\n$$`
+      : `$${source}$`;
+    renderedMath.replaceWith(document.createTextNode(math));
+  });
+
+  const chunks = [];
+  const blockTags = new Set([
+    "ADDRESS", "ARTICLE", "ASIDE", "BLOCKQUOTE", "DIV", "FIGCAPTION", "FIGURE",
+    "FOOTER", "H1", "H2", "H3", "H4", "H5", "H6", "HEADER", "HR", "MAIN",
+    "NAV", "P", "PRE", "SECTION", "TABLE", "TR"
+  ]);
+  const appendLineBreak = () => {
+    const lastChunk = chunks[chunks.length - 1] || "";
+    if (!lastChunk.endsWith("\n")) {
+      chunks.push("\n");
+    }
+  };
+
+  const appendNodeText = (node) => {
+    if (node.nodeType === Node.TEXT_NODE) {
+      chunks.push(node.textContent || "");
+      return;
+    }
+    if (node.nodeType !== Node.ELEMENT_NODE && node.nodeType !== Node.DOCUMENT_FRAGMENT_NODE) return;
+
+    const tagName = node.nodeType === Node.ELEMENT_NODE ? node.tagName : "";
+    if (tagName === "BR") {
+      chunks.push("\n");
+      return;
+    }
+    if (tagName === "LI") {
+      const list = node.parentElement;
+      const prefix = list?.tagName === "OL"
+        ? `${[...list.children].indexOf(node) + 1}. `
+        : "- ";
+      chunks.push(prefix);
+    }
+
+    node.childNodes.forEach(appendNodeText);
+    if (tagName === "LI" || blockTags.has(tagName)) {
+      appendLineBreak();
+    }
+  };
+
+  appendNodeText(fragment);
+  return chunks.join("")
+    .replace(/\u00a0/g, " ")
+    .replace(/[ \t]+\n/g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
 function selectedWindowTextInfo() {
   const selection = window.getSelection();
   if (!selection || selection.isCollapsed || selection.rangeCount === 0) return null;
   if (!editorContainsNode(selection.anchorNode) || !editorContainsNode(selection.focusNode)) return null;
 
   const range = selection.getRangeAt(0);
-  const text = selection.toString();
-  if (!text.trim()) return null;
+  const rawText = selection.toString();
+  if (!rawText.trim()) return null;
 
   const row = closestEditableLine(range.commonAncestorContainer);
   if (row && row.contains(range.startContainer) && row.contains(range.endContainer)) {
@@ -742,7 +858,7 @@ function selectedWindowTextInfo() {
       lineIndex: Number(row.dataset.line),
       start: offsets.start,
       end: offsets.end,
-      text,
+      text: rawText,
       editable: true
     };
   }
@@ -750,7 +866,7 @@ function selectedWindowTextInfo() {
   return {
     type: "dom",
     element: range.commonAncestorContainer,
-    text,
+    text: renderedSelectionText(range) || rawText,
     editable: false
   };
 }
@@ -980,6 +1096,161 @@ function saveAiSettings() {
   localStorage.setItem(aiSettingsKey, JSON.stringify(state.aiSettings));
 }
 
+function loadCloudSettings() {
+  try {
+    return {
+      ...defaultCloudSettings,
+      ...JSON.parse(localStorage.getItem(cloudSettingsKey) || "{}")
+    };
+  } catch {
+    return { ...defaultCloudSettings };
+  }
+}
+
+function saveCloudSettings() {
+  localStorage.setItem(cloudSettingsKey, JSON.stringify(state.cloudSettings));
+}
+
+async function initCloudSession() {
+  const status = await window.marknote?.lanSyncStatus?.();
+  if (status?.running) {
+    state.cloudSession = status;
+    state.cloudSettings.lastUrl = status.urls?.[0] || "";
+    state.cloudSettings.lastCode = status.code || "";
+    state.cloudStatus = lanSyncStatusText(status);
+  } else {
+    state.cloudSession = null;
+    state.cloudStatus = "局域网同步未开启";
+  }
+  saveCloudSettings();
+  renderCloudSettings();
+
+  window.marknote?.onLanSyncNoteUpdated?.((note) => {
+    applyLanSyncedNote(note);
+  });
+}
+
+async function signInCloudWithPassword() {
+  if (state.preferences.viewMode === "wysiwyg") {
+    await syncStateFromWysiwyg();
+  }
+
+  state.cloudStatus = "正在开启局域网同步...";
+  renderCloudSettings();
+  const result = await window.marknote?.startLanSync?.(buildLanSyncPayload());
+  state.cloudSession = result?.running ? result : null;
+  state.cloudSettings.lastUrl = result?.urls?.[0] || "";
+  state.cloudSettings.lastCode = result?.code || "";
+  state.cloudStatus = result?.running ? lanSyncStatusText(result) : "无法开启局域网同步";
+  saveCloudSettings();
+  renderCloudSettings();
+  showToast(state.cloudStatus);
+}
+
+async function signUpCloudWithPassword() {
+  await window.marknote?.stopLanSync?.();
+  state.cloudSession = null;
+  state.cloudSettings.lastUrl = "";
+  state.cloudSettings.lastCode = "";
+  state.cloudStatus = "局域网同步已停止";
+  saveCloudSettings();
+  renderCloudSettings();
+  showToast("已停止局域网同步");
+}
+
+function useLocalOnlyCloudMode() {
+  const url = state.cloudSession?.urls?.[0] || state.cloudSettings.lastUrl;
+  const code = state.cloudSession?.code || state.cloudSettings.lastCode;
+  const text = url && code ? `电脑地址：${url}\n同步码：${code}` : "";
+  if (!text) {
+    showToast("请先开启局域网同步");
+    return;
+  }
+  navigator.clipboard?.writeText(text).then(() => {
+    showToast("已复制手机端同步信息");
+  }).catch(() => {
+    showToast(text);
+  });
+}
+
+function titleFromMarkdown(markdown) {
+  const heading = String(markdown || "")
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .find((line) => /^#{1,6}\s+/.test(line));
+  if (heading) {
+    return heading.replace(/^#{1,6}\s+/, "").replace(/[*_`~]/g, "").trim().slice(0, 80) || state.fileName || t("untitledHeading");
+  }
+  const firstText = String(markdown || "").split(/\r?\n/).map((line) => line.trim()).find(Boolean);
+  return firstText ? firstText.replace(/[#*_`~>-]/g, "").trim().slice(0, 80) || state.fileName || t("untitledHeading") : state.fileName || t("untitledHeading");
+}
+
+async function uploadCurrentNoteToCloud() {
+  if (!state.cloudSession) {
+    showToast("请先开启局域网同步");
+    return;
+  }
+
+  if (state.preferences.viewMode === "wysiwyg") {
+    await syncStateFromWysiwyg();
+  }
+
+  state.cloudStatus = "正在刷新共享笔记...";
+  renderCloudSettings();
+  const result = await window.marknote?.updateLanSync?.(buildLanSyncPayload());
+  state.cloudSession = result?.running ? result : null;
+  state.cloudSettings.lastUrl = result?.urls?.[0] || state.cloudSettings.lastUrl || "";
+  state.cloudSettings.lastCode = result?.code || state.cloudSettings.lastCode || "";
+  state.cloudStatus = result?.running ? "当前笔记已刷新到手机同步入口" : "局域网同步未开启";
+  saveCloudSettings();
+  renderCloudSettings();
+  showToast(state.cloudStatus);
+}
+
+function renderCloudSettings() {
+  if (!elements.cloudUrlInput) return;
+  elements.cloudUrlInput.value = state.cloudSession?.urls?.[0] || state.cloudSettings.lastUrl || "";
+  elements.cloudAnonKeyInput.value = state.cloudSession?.code || state.cloudSettings.lastCode || "";
+  elements.cloudStatus.textContent = state.cloudStatus || (state.cloudSession ? lanSyncStatusText(state.cloudSession) : "局域网同步未开启");
+  elements.cloudSignInButton.textContent = state.cloudSession ? "重新开启" : "开启同步";
+  elements.cloudSignUpButton.disabled = !state.cloudSession;
+  elements.cloudUploadButton.disabled = !state.cloudSession;
+  elements.cloudLocalOnlyButton.disabled = !state.cloudSession;
+}
+
+function buildLanSyncPayload() {
+  const now = new Date().toISOString();
+  return {
+    notes: [{
+      id: "current",
+      title: titleFromMarkdown(state.markdown),
+      content: state.markdown,
+      fileName: state.fileName || t("untitled"),
+      filePath: state.filePath,
+      updated_at: now
+    }]
+  };
+}
+
+function lanSyncStatusText(status) {
+  const url = status?.urls?.[0] || "";
+  const code = status?.code || "";
+  if (!url || !code) return "局域网同步已开启";
+  return `手机输入 ${url}，同步码 ${code}`;
+}
+
+function applyLanSyncedNote(note) {
+  if (!note || note.id !== "current") return;
+  state.markdown = note.content || "";
+  state.savedMarkdown = state.markdown;
+  state.fileName = note.fileName || state.fileName;
+  state.saveStatus = "saved";
+  elements.editor.value = state.markdown;
+  syncWysiwygSoon();
+  render();
+  showToast("手机上的修改已同步到电脑");
+}
+
 function currentAiProvider() {
   return aiProviders.includes(state.aiSettings.provider) ? state.aiSettings.provider : defaultAiSettings.provider;
 }
@@ -1036,6 +1307,21 @@ function aiPromptFor(action) {
     continue: "aiPromptContinue"
   }[action];
   return key ? t(key) : "";
+}
+
+function aiWorkingLabelFor(instruction) {
+  return aiInstructionNeedsDraft(instruction) ? t("aiWritingDraft") : t("aiThinkingStatus");
+}
+
+function aiInstructionNeedsDraft(instruction) {
+  const text = String(instruction || "").trim();
+  if (!text) return false;
+
+  const englishEditIntent = /\b(modify|rewrite|polish|continue|organize|restructure|replace|convert|correct|fix|repair|apply|update)\b/i;
+  const chineseEditIntent =
+    /(?:帮我|请|麻烦|那你).{0,20}(?:修改|改写|改成|改为|改对|改正|修正|修复|纠正|替换|转换|转成|润色|续写|整理|重构|优化|生成)|(?:把|将).{0,80}(?:改成|改为|改对|改正|修正|修复|纠正|替换|转换|转成|润色|整理|重构|优化)/;
+
+  return englishEditIntent.test(text) || chineseEditIntent.test(text);
 }
 
 function createAiMessage(role, content, extra = {}) {
@@ -1121,7 +1407,20 @@ function renderAiPanel() {
     item.className = `aiMessage ${message.role}`;
     const bubble = document.createElement("div");
     bubble.className = "aiBubble";
-    bubble.textContent = message.content || (message.streaming ? t("aiThinking") : "");
+    const bubbleContent = message.content || "";
+    if ((message.role === "assistant" || message.role === "user") && message.content) {
+      bubble.classList.add("markdown");
+      bubble.innerHTML = markdownPreviewHtml(message.content);
+      bubble.querySelectorAll("a[href]").forEach((link) => {
+        link.setAttribute("target", "_blank");
+        link.setAttribute("rel", "noreferrer");
+      });
+    } else {
+      bubble.textContent = bubbleContent;
+    }
+    if (message.streaming && !message.content) {
+      bubble.append(createAiWorkingIndicator(message.workingLabel || state.aiWorkingLabel || t("aiThinkingStatus")));
+    }
     item.append(bubble);
 
     if (message.draftMarkdown) {
@@ -1146,11 +1445,33 @@ function renderAiPanel() {
   if (state.aiLoading && !hasStreamingMessage) {
     const loading = document.createElement("div");
     loading.className = "aiMessage assistant";
-    loading.innerHTML = `<div class="aiBubble">${escapeHtml(t("aiThinking"))}</div>`;
+    const bubble = document.createElement("div");
+    bubble.className = "aiBubble";
+    bubble.append(createAiWorkingIndicator(state.aiWorkingLabel || t("aiThinkingStatus")));
+    loading.append(bubble);
     elements.aiMessages.append(loading);
   }
 
   elements.aiMessages.scrollTop = elements.aiMessages.scrollHeight;
+}
+
+function createAiWorkingIndicator(label) {
+  const indicator = document.createElement("div");
+  indicator.className = "aiThinkingIndicator";
+  indicator.setAttribute("role", "status");
+  indicator.setAttribute("aria-live", "polite");
+
+  const pulse = document.createElement("span");
+  pulse.className = "aiThinkingPulse";
+  pulse.setAttribute("aria-hidden", "true");
+  pulse.append(document.createElement("span"), document.createElement("span"), document.createElement("span"));
+
+  const text = document.createElement("span");
+  text.className = "aiThinkingText";
+  text.textContent = label;
+
+  indicator.append(pulse, text);
+  return indicator;
 }
 
 function recentAiConversation() {
@@ -1181,12 +1502,16 @@ async function sendAiMessage(instruction) {
 
   state.aiMessages.push(createAiMessage("user", trimmed));
   state.aiLoading = true;
+  state.aiWorkingLabel = aiWorkingLabelFor(trimmed);
   elements.aiInput.value = "";
   renderAiPanel();
 
   try {
     if (window.marknote?.askAiStream) {
-      const streamingMessage = createAiMessage("assistant", "", { streaming: true });
+      const streamingMessage = createAiMessage("assistant", "", {
+        streaming: true,
+        workingLabel: state.aiWorkingLabel
+      });
       state.aiMessages.push(streamingMessage);
       renderAiPanel();
 
@@ -1255,6 +1580,7 @@ async function sendAiMessage(instruction) {
     state.aiMessages.push(createAiMessage("error", message));
   } finally {
     state.aiLoading = false;
+    state.aiWorkingLabel = "";
     renderAiPanel();
   }
 }
@@ -1374,7 +1700,7 @@ function makeRenderedTaskCheckboxesInteractive(row) {
 function sanitizeMarkdownHtml(html) {
   return DOMPurify.sanitize(html, {
     ADD_TAGS: ["math", "semantics", "mrow", "mi", "mn", "mo", "msup", "msub", "msubsup", "mfrac", "msqrt", "mroot", "mtext", "annotation"],
-    ADD_ATTR: ["target", "rel", "checked", "disabled", "type", "class", "style", "aria-hidden", "xmlns", "encoding", "tabindex"]
+    ADD_ATTR: ["target", "rel", "checked", "disabled", "type", "class", "style", "aria-hidden", "xmlns", "encoding", "tabindex", "data-math-source"]
   });
 }
 
@@ -1385,6 +1711,21 @@ function markdownToHtmlWithMath(markdown) {
 
   for (let index = 0; index < lines.length; index += 1) {
     const line = lines[index];
+    if (!inCodeFence && mathCodeFenceInfo(line)) {
+      const end = findCodeFenceEnd(lines, index);
+      if (end > index) {
+        const math = lines.slice(index + 1, end).join("\n");
+        renderedLines.push(renderMathHtml(math, true));
+        index = end;
+        continue;
+      }
+    }
+
+    if (!inCodeFence && singleLineDisplayMath(line)) {
+      renderedLines.push(renderMathHtml(singleLineDisplayMath(line), true));
+      continue;
+    }
+
     if (codeFenceInfo(line)) {
       inCodeFence = !inCodeFence;
       renderedLines.push(line);
@@ -1414,6 +1755,11 @@ function renderInlineMath(line) {
   });
 }
 
+function singleLineDisplayMath(line) {
+  const match = /^\s*\$\$(.+?)\$\$\s*$/.exec(String(line || ""));
+  return match?.[1]?.trim() || "";
+}
+
 function renderMathHtml(math, displayMode) {
   const source = String(math || "").trim();
   if (!source) return "";
@@ -1428,9 +1774,10 @@ function renderMathHtml(math, displayMode) {
     strict: false
   });
   const className = displayMode ? "mathBlock" : "mathInline";
+  const sourceAttribute = escapeHtml(source);
   return displayMode
-    ? `<div class="${className}">${html}</div>`
-    : `<span class="${className}">${html}</span>`;
+    ? `<div class="${className}" data-math-source="${sourceAttribute}">${html}</div>`
+    : `<span class="${className}" data-math-source="${sourceAttribute}">${html}</span>`;
 }
 
 function isMathFenceLine(line) {
@@ -1438,6 +1785,14 @@ function isMathFenceLine(line) {
 }
 
 function findMathFenceEnd(lines, startIndex) {
+  if (mathCodeFenceInfo(lines[startIndex])) {
+    return findCodeFenceEnd(lines, startIndex);
+  }
+
+  if (singleLineDisplayMath(lines[startIndex])) return startIndex;
+
+  if (!isMathFenceLine(lines[startIndex])) return startIndex;
+
   for (let index = startIndex + 1; index < lines.length; index += 1) {
     if (isMathFenceLine(lines[index])) {
       return index;
@@ -1447,18 +1802,17 @@ function findMathFenceEnd(lines, startIndex) {
 }
 
 function findMathFenceRangeForLine(lines, lineIndex) {
-  let start = -1;
-
-  for (let index = 0; index <= lineIndex; index += 1) {
-    if (isMathFenceLine(lines[index])) {
-      start = start === -1 ? index : -1;
+  for (let index = 0; index <= lineIndex && index < lines.length; index += 1) {
+    const end = findMathFenceEnd(lines, index);
+    if (end >= index && (singleLineDisplayMath(lines[index]) || end > index)) {
+      if (lineIndex <= end) {
+        return { start: index, end };
+      }
+      index = end;
     }
   }
 
-  if (start === -1) return null;
-  const end = findMathFenceEnd(lines, start);
-  if (end <= start || lineIndex > end) return null;
-  return { start, end };
+  return null;
 }
 
 function codeFenceInfo(line) {
@@ -1471,6 +1825,14 @@ function codeFenceInfo(line) {
     size: match[2].length,
     meta: match[3].trim()
   };
+}
+
+function mathCodeFenceInfo(line) {
+  const info = codeFenceInfo(line);
+  if (!info) return null;
+
+  const language = info.meta.split(/\s+/)[0]?.toLowerCase();
+  return ["math", "latex", "tex"].includes(language) ? info : null;
 }
 
 function findCodeFenceEnd(lines, startIndex) {
@@ -1635,6 +1997,24 @@ function hasTextSelection() {
   return Boolean(selection && !selection.isCollapsed && selection.toString().trim());
 }
 
+function restoreTextareaEditState(textarea, editState) {
+  if (!editState) return;
+
+  textarea.scrollTop = editState.scrollTop;
+  textarea.scrollLeft = editState.scrollLeft;
+  textarea.setSelectionRange(editState.selectionStart, editState.selectionEnd, editState.selectionDirection);
+  window.requestAnimationFrame(() => {
+    textarea.scrollTop = editState.scrollTop;
+    textarea.scrollLeft = editState.scrollLeft;
+    textarea.setSelectionRange(editState.selectionStart, editState.selectionEnd, editState.selectionDirection);
+  });
+  window.setTimeout(() => {
+    textarea.scrollTop = editState.scrollTop;
+    textarea.scrollLeft = editState.scrollLeft;
+    textarea.setSelectionRange(editState.selectionStart, editState.selectionEnd, editState.selectionDirection);
+  }, 0);
+}
+
 function normalizeTaskBrackets(markdown) {
   return markdown
     .split("\n")
@@ -1677,6 +2057,8 @@ class LinewiseMarkdownEditor {
     this.editingCodeBlockStart = null;
     this.editingTableStart = null;
     this.editingMathStart = null;
+    this.undoStack = [];
+    this.redoStack = [];
     this.selectionScrollGuard = {
       active: false,
       frame: 0,
@@ -1686,6 +2068,8 @@ class LinewiseMarkdownEditor {
     this.bindSelectionScrollGuard();
     this.bindBlankAreaExit();
     this.bindMathBlockEdit();
+    this.bindSelectionDelete();
+    this.bindUndoShortcuts();
   }
 
   get lines() {
@@ -1734,15 +2118,14 @@ class LinewiseMarkdownEditor {
   }
 
   scrollToHeading(heading) {
-    this.activeLine = heading.line;
-    state.hybridActiveLine = this.activeLine;
+    this.activeLine = -1;
+    state.hybridActiveLine = -1;
     this.editingCodeBlockStart = null;
     this.editingTableStart = null;
     this.editingMathStart = null;
     this.render({ focus: false, restoreScroll: false });
     window.requestAnimationFrame(() => {
       this.scrollLineIntoView(heading.line);
-      this.focusActiveLineAtEnd();
     });
   }
 
@@ -1822,6 +2205,140 @@ class LinewiseMarkdownEditor {
     }, true);
   }
 
+  bindSelectionDelete() {
+    window.addEventListener("keydown", (event) => {
+      if (event.key !== "Backspace" && event.key !== "Delete") return;
+      if (event.defaultPrevented) return;
+      if (this.deleteCurrentSelection()) {
+        event.preventDefault();
+      }
+    });
+  }
+
+  bindUndoShortcuts() {
+    window.addEventListener("keydown", (event) => {
+      if (state.preferences.viewMode !== "wysiwyg") return;
+      if (!shortcutMatches(event, "z")) return;
+      if (this.root.contains(document.activeElement) && /^(INPUT|TEXTAREA)$/.test(document.activeElement.tagName)) return;
+
+      event.preventDefault();
+      if (event.shiftKey) {
+        this.redo();
+      } else {
+        this.undo();
+      }
+    });
+  }
+
+  currentHistorySnapshot() {
+    return {
+      markdown: this.markdown,
+      activeLine: this.activeLine,
+      editingCodeBlockStart: this.editingCodeBlockStart,
+      editingTableStart: this.editingTableStart,
+      editingMathStart: this.editingMathStart,
+      scrollTop: this.root.scrollTop
+    };
+  }
+
+  pushHistorySnapshot() {
+    const snapshot = this.currentHistorySnapshot();
+    const previous = this.undoStack[this.undoStack.length - 1];
+    if (previous?.markdown === snapshot.markdown) return;
+
+    this.undoStack.push(snapshot);
+    if (this.undoStack.length > 100) {
+      this.undoStack.shift();
+    }
+    this.redoStack = [];
+  }
+
+  restoreHistorySnapshot(snapshot) {
+    this.markdown = snapshot.markdown;
+    this.activeLine = this.clampLine(snapshot.activeLine);
+    this.editingCodeBlockStart = snapshot.editingCodeBlockStart;
+    this.editingTableStart = snapshot.editingTableStart;
+    this.editingMathStart = snapshot.editingMathStart;
+    state.hybridActiveLine = this.activeLine;
+    this.onChange?.(this.markdown, {
+      source: "history",
+      preserveActive: true
+    });
+    this.render({
+      focus: true,
+      caretOffset: null
+    });
+    this.restoreScroll(snapshot.scrollTop);
+  }
+
+  undo() {
+    const snapshot = this.undoStack.pop();
+    if (!snapshot) return false;
+
+    this.redoStack.push(this.currentHistorySnapshot());
+    this.restoreHistorySnapshot(snapshot);
+    return true;
+  }
+
+  redo() {
+    const snapshot = this.redoStack.pop();
+    if (!snapshot) return false;
+
+    this.undoStack.push(this.currentHistorySnapshot());
+    this.restoreHistorySnapshot(snapshot);
+    return true;
+  }
+
+  selectedLineRange() {
+    const selection = window.getSelection();
+    if (!selection || selection.isCollapsed || selection.rangeCount === 0) return null;
+
+    const range = selection.getRangeAt(0);
+    if (!this.root.contains(range.commonAncestorContainer)) return null;
+
+    const startRow = closestHybridLine(range.startContainer);
+    const endRow = closestHybridLine(range.endContainer);
+    if (!startRow || !endRow || !this.root.contains(startRow) || !this.root.contains(endRow)) return null;
+
+    const startLine = Number(startRow.dataset.line);
+    const endLine = Number(endRow.dataset.line);
+    if (!Number.isInteger(startLine) || !Number.isInteger(endLine)) return null;
+
+    return {
+      startLine,
+      endLine,
+      startOffset: startRow.classList.contains("hybridSourceLine")
+        ? boundaryOffsetWithin(startRow, range.startContainer, range.startOffset)
+        : 0,
+      endOffset: endRow.classList.contains("hybridSourceLine")
+        ? boundaryOffsetWithin(endRow, range.endContainer, range.endOffset)
+        : (this.lines[endLine] || "").length
+    };
+  }
+
+  deleteCurrentSelection() {
+    const selected = this.selectedLineRange();
+    if (!selected) return false;
+
+    this.pushHistorySnapshot();
+    const lines = this.lines;
+    const startLine = Math.max(0, Math.min(selected.startLine, lines.length - 1));
+    const endLine = Math.max(startLine, Math.min(selected.endLine, lines.length - 1));
+    const startText = lines[startLine] || "";
+    const endText = lines[endLine] || "";
+    const startOffset = Math.max(0, Math.min(selected.startOffset, startText.length));
+    const endOffset = Math.max(0, Math.min(selected.endOffset, endText.length));
+    const mergedLine = `${startText.slice(0, startOffset)}${endText.slice(endOffset)}`;
+
+    lines.splice(startLine, endLine - startLine + 1, mergedLine);
+    window.getSelection()?.removeAllRanges();
+    this.replaceLines(lines.length ? lines : [""], startLine, {
+      source: "selection-delete",
+      caretOffset: startOffset
+    });
+    return true;
+  }
+
   openMathEditor(lineIndex) {
     const range = findMathFenceRangeForLine(this.lines, lineIndex);
     if (!range) return;
@@ -1867,6 +2384,9 @@ class LinewiseMarkdownEditor {
   updateLine(lineIndex, value, options = {}) {
     const lines = this.lines;
     const scrollTop = this.root.scrollTop;
+    if ((lines[lineIndex] || "") !== value) {
+      this.pushHistorySnapshot();
+    }
     lines[lineIndex] = value;
     this.markdown = lines.join("\n");
     this.onChange?.(this.markdown, options);
@@ -1888,6 +2408,7 @@ class LinewiseMarkdownEditor {
     if (nextLine === line) return false;
 
     const scrollTop = this.root.scrollTop;
+    this.pushHistorySnapshot();
     lines[lineIndex] = nextLine;
     this.markdown = lines.join("\n");
     this.editingCodeBlockStart = null;
@@ -1903,6 +2424,9 @@ class LinewiseMarkdownEditor {
   }
 
   replaceLines(lines, activeLine, options = {}) {
+    if (lines.join("\n") !== this.markdown) {
+      this.pushHistorySnapshot();
+    }
     this.markdown = lines.join("\n");
     this.activeLine = Math.max(0, Math.min(activeLine, lines.length - 1));
     this.editingCodeBlockStart = Number.isInteger(options.editCodeBlockStart) ? options.editCodeBlockStart : null;
@@ -1926,8 +2450,12 @@ class LinewiseMarkdownEditor {
     const openingLine = `${currentRange.opening.indent}${currentRange.opening.marker}${language.trim()}`;
     const closingLine = `${currentRange.opening.indent}${currentRange.opening.marker}`;
     const nextLines = [...before, openingLine, ...codeLines, closingLine, ...after];
+    const nextMarkdown = nextLines.join("\n");
+    if (nextMarkdown !== this.markdown) {
+      this.pushHistorySnapshot();
+    }
 
-    this.markdown = nextLines.join("\n");
+    this.markdown = nextMarkdown;
     this.activeLine = currentRange.start;
     this.editingCodeBlockStart = currentRange.start;
     state.hybridActiveLine = this.activeLine;
@@ -1941,8 +2469,12 @@ class LinewiseMarkdownEditor {
     const after = lines.slice(currentRange.end + 1);
     const tableLines = tableMarkdown.replace(/\r\n?/g, "\n").split("\n");
     const nextLines = [...before, ...tableLines, ...after];
+    const nextMarkdown = nextLines.join("\n");
+    if (nextMarkdown !== this.markdown) {
+      this.pushHistorySnapshot();
+    }
 
-    this.markdown = nextLines.join("\n");
+    this.markdown = nextMarkdown;
     this.activeLine = currentRange.start;
     this.editingTableStart = currentRange.start;
     state.hybridActiveLine = this.activeLine;
@@ -1956,8 +2488,12 @@ class LinewiseMarkdownEditor {
     const after = lines.slice(currentRange.end + 1);
     const mathLines = mathMarkdown.replace(/\r\n?/g, "\n").split("\n");
     const nextLines = [...before, ...mathLines, ...after];
+    const nextMarkdown = nextLines.join("\n");
+    if (nextMarkdown !== this.markdown) {
+      this.pushHistorySnapshot();
+    }
 
-    this.markdown = nextLines.join("\n");
+    this.markdown = nextMarkdown;
     this.activeLine = currentRange.start;
     this.editingMathStart = currentRange.start;
     state.hybridActiveLine = this.activeLine;
@@ -2179,19 +2715,18 @@ class LinewiseMarkdownEditor {
         continue;
       }
 
-      if (isMathFenceLine(line)) {
-        const mathEnd = findMathFenceEnd(lines, index);
-        if (mathEnd > index) {
-          const row = document.createElement("div");
-          row.className = "hybridLine rendered hybridMathBlock";
-          row.dataset.line = String(index);
-          row.dataset.lineStart = String(index);
-          row.dataset.lineEnd = String(mathEnd);
-          row.innerHTML = renderMathHtml(lines.slice(index + 1, mathEnd).join("\n"), true);
-          this.root.append(row);
-          index = mathEnd;
-          continue;
-        }
+      const singleLineMath = singleLineDisplayMath(line);
+      const mathEnd = findMathFenceEnd(lines, index);
+      if (singleLineMath || mathEnd > index) {
+        const row = document.createElement("div");
+        row.className = "hybridLine rendered hybridMathBlock";
+        row.dataset.line = String(index);
+        row.dataset.lineStart = String(index);
+        row.dataset.lineEnd = String(mathEnd);
+        row.innerHTML = renderMathHtml(singleLineMath || lines.slice(index + 1, mathEnd).join("\n"), true);
+        this.root.append(row);
+        index = mathEnd;
+        continue;
       }
 
       const fenceInfo = codeFenceInfo(line);
@@ -2383,7 +2918,7 @@ class LinewiseMarkdownEditor {
       return;
     }
 
-    if (event.key === "Backspace" && selectionOffsetWithin(row) === 0 && lineIndex > 0) {
+    if (event.key === "Backspace" && !hasTextSelection() && selectionOffsetWithin(row) === 0 && lineIndex > 0) {
       event.preventDefault();
       const lines = this.lines;
       const previousLength = lines[lineIndex - 1].length;
@@ -2577,6 +3112,7 @@ function renderOutline() {
     if (isCollapsed) button.classList.add("collapsed");
     if (heading.id === state.activeHeadingId) button.classList.add("active");
     button.type = "button";
+    button.dataset.headingId = heading.id;
     button.style.setProperty("--depth", heading.level - 1);
     button.innerHTML = `
       <span class="outlineGuide">${outlineGlyph(index, hasChildren, isCollapsed)}</span>
@@ -2598,8 +3134,15 @@ function renderOutline() {
 function setActiveHeadingId(headingId) {
   if (!headingId || headingId === state.activeHeadingId) return;
   state.activeHeadingId = headingId;
-  renderOutline();
+  updateOutlineActiveState();
   updateStatus();
+}
+
+function updateOutlineActiveState() {
+  elements.outlineList.querySelectorAll(".outlineItem").forEach((item) => {
+    item.classList.toggle("active", item.dataset.headingId === state.activeHeadingId);
+  });
+  keepActiveOutlineItemVisible();
 }
 
 function keepActiveOutlineItemVisible() {
@@ -2684,6 +3227,49 @@ function updateActiveHeadingFromVisibleScroll() {
 function scheduleActiveHeadingFromScroll() {
   window.cancelAnimationFrame(state.activeHeadingScrollFrame);
   state.activeHeadingScrollFrame = window.requestAnimationFrame(updateActiveHeadingFromVisibleScroll);
+}
+
+function scrollContainerForMode(mode) {
+  if (mode === "wysiwyg") return elements.wysiwygEditor;
+  if (mode === "edit") return elements.editor;
+  return elements.previewPane;
+}
+
+function readingProgressForMode(mode) {
+  const container = scrollContainerForMode(mode);
+  const maxScroll = container.scrollHeight - container.clientHeight;
+  if (maxScroll <= 0) return 0;
+  return Math.max(0, Math.min(1, container.scrollTop / maxScroll));
+}
+
+function applyReadingProgressToMode(mode, progress) {
+  const container = scrollContainerForMode(mode);
+  const maxScroll = container.scrollHeight - container.clientHeight;
+  if (maxScroll <= 0) return;
+
+  const syncPreviewContainer = container === elements.previewPane;
+  if (syncPreviewContainer) {
+    state.syncingPreviewScroll = true;
+  }
+  container.scrollTop = Math.max(0, Math.min(1, progress)) * maxScroll;
+  if (syncPreviewContainer) {
+    window.setTimeout(() => {
+      state.syncingPreviewScroll = false;
+    }, 80);
+  }
+}
+
+function restoreReadingProgressSoon(mode, progress) {
+  const restore = () => {
+    applyReadingProgressToMode(mode, progress);
+    scheduleActiveHeadingFromScroll();
+  };
+
+  window.requestAnimationFrame(() => {
+    restore();
+    window.requestAnimationFrame(restore);
+  });
+  window.setTimeout(restore, 260);
 }
 
 function renderRecentFiles() {
@@ -2879,9 +3465,13 @@ function toggleHeadingCollapse(headingId) {
 }
 
 function playOutlineAnimation() {
+  window.clearTimeout(state.outlineAnimationTimer);
   elements.outlineList.classList.remove("outlineAnimating");
   void elements.outlineList.offsetWidth;
   elements.outlineList.classList.add("outlineAnimating");
+  state.outlineAnimationTimer = window.setTimeout(() => {
+    elements.outlineList.classList.remove("outlineAnimating");
+  }, 180);
 }
 
 function updateStatus() {
@@ -2946,9 +3536,31 @@ function applyPreferences() {
   elements.saveButton.hidden = state.isHelpOpen;
   elements.settingsPanel.hidden = !state.settingsOpen;
   elements.settingsToggle.classList.toggle("active", state.settingsOpen);
+  renderSettingsPage();
   elements.wrapSetting.checked = state.preferences.wordWrap;
   elements.taskBracketSetting.checked = state.preferences.taskBracketCompat;
+  renderCloudSettings();
   applyLanguage();
+}
+
+function renderSettingsPage() {
+  const page = state.settingsPage || "main";
+  elements.settingsMainPage.hidden = page !== "main";
+  elements.cloudSettingsPage.hidden = page !== "cloud";
+  elements.aiSettingsPage.hidden = page !== "ai";
+  elements.settingsBackButton.hidden = page === "main";
+  elements.settingsTitle.textContent = page === "cloud"
+    ? "局域网同步"
+    : page === "ai"
+      ? t("aiSettings")
+      : t("settings");
+  elements.cloudSettingsSummary.textContent = state.cloudSession ? "已开启" : "未开启";
+  elements.aiSettingsSummary.textContent = currentAiProvider();
+}
+
+function openSettingsPage(page) {
+  state.settingsPage = page;
+  render();
 }
 
 function render() {
@@ -3022,6 +3634,7 @@ async function setViewMode(mode) {
   const previousMode = state.preferences.viewMode;
   const nextMode = viewModes.includes(mode) ? mode : "preview";
   if (previousMode === nextMode) return;
+  const readingProgress = readingProgressForMode(previousMode);
 
   if (previousMode === "wysiwyg") {
     await syncStateFromWysiwyg();
@@ -3037,7 +3650,7 @@ async function setViewMode(mode) {
     if (nextMode === "wysiwyg") {
       state.wysiwyg?.focus();
     }
-    window.requestAnimationFrame(scheduleActiveHeadingFromScroll);
+    restoreReadingProgressSoon(nextMode, readingProgress);
   });
 }
 
@@ -3060,7 +3673,7 @@ function cycleTheme() {
 
 function jumpToHeading(heading) {
   state.activeHeadingId = heading.id;
-  renderOutline();
+  updateOutlineActiveState();
   updateStatus();
 
   if (state.preferences.viewMode === "wysiwyg") {
@@ -3542,9 +4155,22 @@ function bindShortcuts() {
 
 function bindEvents() {
   elements.editor.addEventListener("input", (event) => {
+    const editState = {
+      scrollTop: event.target.scrollTop,
+      scrollLeft: event.target.scrollLeft,
+      selectionStart: event.target.selectionStart,
+      selectionEnd: event.target.selectionEnd,
+      selectionDirection: event.target.selectionDirection
+    };
     state.markdown = event.target.value;
     applyTaskBracketConversion();
+    editState.selectionStart = event.target.selectionStart;
+    editState.selectionEnd = event.target.selectionEnd;
+    editState.selectionDirection = event.target.selectionDirection;
     render();
+    if (state.preferences.viewMode === "edit") {
+      restoreTextareaEditState(event.target, editState);
+    }
     scheduleDraftSave();
   });
 
@@ -3588,6 +4214,14 @@ function bindEvents() {
       event.preventDefault();
       event.stopPropagation();
       openEditorContextMenu(event);
+    });
+  });
+  [elements.wysiwygEditor, elements.previewPane].forEach((renderedSurface) => {
+    renderedSurface.addEventListener("copy", (event) => {
+      const selectionInfo = selectedWindowTextInfo();
+      if (selectionInfo?.type !== "dom" || !selectionInfo.text || !event.clipboardData) return;
+      event.preventDefault();
+      event.clipboardData.setData("text/plain", selectionInfo.text);
     });
   });
   elements.editorContextMenu.addEventListener("mousedown", (event) => {
@@ -3653,8 +4287,14 @@ function bindEvents() {
   });
   elements.settingsToggle.addEventListener("click", () => {
     state.settingsOpen = !state.settingsOpen;
+    if (state.settingsOpen) {
+      state.settingsPage = "main";
+    }
     render();
   });
+  elements.settingsBackButton.addEventListener("click", () => openSettingsPage("main"));
+  elements.cloudSettingsNavButton.addEventListener("click", () => openSettingsPage("cloud"));
+  elements.aiSettingsNavButton.addEventListener("click", () => openSettingsPage("ai"));
   elements.languageSelect.addEventListener("change", (event) => {
     setLanguage(event.target.value);
   });
@@ -3672,6 +4312,10 @@ function bindEvents() {
       scheduleDraftSave();
     }
   });
+  elements.cloudSignInButton.addEventListener("click", signInCloudWithPassword);
+  elements.cloudSignUpButton.addEventListener("click", signUpCloudWithPassword);
+  elements.cloudLocalOnlyButton.addEventListener("click", useLocalOnlyCloudMode);
+  elements.cloudUploadButton.addEventListener("click", uploadCurrentNoteToCloud);
   elements.aiProviderSelect.addEventListener("change", (event) => {
     setAiProvider(event.target.value);
   });
@@ -3753,6 +4397,7 @@ async function boot() {
   elements.editor.value = state.markdown;
   bindEvents();
   render();
+  await initCloudSession();
   await initWysiwygEditor();
   await restoreDraftIfNeeded();
   if (state.preferences.viewMode === "wysiwyg") {

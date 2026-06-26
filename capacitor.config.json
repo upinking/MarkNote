@@ -1,0 +1,9 @@
+{
+  "appId": "com.codex.marknote.mobile",
+  "appName": "MarkNote",
+  "webDir": "mobile/dist",
+  "bundledWebRuntime": false,
+  "android": {
+    "path": "mobile/android"
+  }
+}

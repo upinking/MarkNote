@@ -10,6 +10,10 @@ contextBridge.exposeInMainWorld("marknote", {
   showInFolder: (filePath) => ipcRenderer.invoke("file:show-in-folder", filePath),
   exportPdf: (payload) => ipcRenderer.invoke("file:export-pdf", payload),
   openReadme: () => ipcRenderer.invoke("file:readme"),
+  startLanSync: (payload) => ipcRenderer.invoke("lan-sync:start", payload),
+  updateLanSync: (payload) => ipcRenderer.invoke("lan-sync:update", payload),
+  stopLanSync: () => ipcRenderer.invoke("lan-sync:stop"),
+  lanSyncStatus: () => ipcRenderer.invoke("lan-sync:status"),
   askAi: (payload) => ipcRenderer.invoke("ai:complete", payload),
   askAiStream: (payload, handlers = {}) => {
     const requestId = `ai-${Date.now()}-${Math.random().toString(16).slice(2)}`;
@@ -49,6 +53,9 @@ contextBridge.exposeInMainWorld("marknote", {
   closeWindow: () => ipcRenderer.send("window:close-confirmed"),
   onRequestClose: (callback) => {
     ipcRenderer.on("app:request-close", callback);
+  },
+  onLanSyncNoteUpdated: (callback) => {
+    ipcRenderer.on("lan-sync:note-updated", (_event, payload) => callback(payload));
   },
   platform: process.platform
 });
