@@ -609,6 +609,11 @@ button {
   color: var(--accent-text);
 }
 
+.recentItem.libraryRecentItem {
+  align-items: center;
+  min-height: 42px;
+}
+
 .recentName,
 .recentPath {
   min-width: 0;
@@ -791,19 +796,37 @@ button {
 }
 
 .workspace {
+  --library-pane-expanded-width: 286px;
+  --outline-pane-expanded-width: 220px;
+  --library-pane-width: var(--library-pane-expanded-width);
+  --outline-pane-width: var(--outline-pane-expanded-width);
+  --ai-pane-width: 0px;
+  --collapsed-pane-width: 48px;
   display: grid;
-  grid-template-columns: 270px minmax(360px, 1fr) minmax(360px, 0.9fr);
+  grid-template-columns: var(--library-pane-width) var(--outline-pane-width) minmax(360px, 1fr) minmax(340px, 0.86fr);
   min-height: 0;
   border-bottom: 1px solid var(--border);
-  transition: border-color 220ms ease, background-color 220ms ease;
+  transition:
+    grid-template-columns 420ms cubic-bezier(0.16, 1, 0.3, 1),
+    border-color 220ms ease,
+    background-color 220ms ease;
 }
 
-.workspace.contentFadeIn {
-  animation: contentFadeIn 260ms cubic-bezier(0.2, 0.8, 0.2, 1);
+.workspace.libraryCollapsed {
+  --library-pane-width: var(--collapsed-pane-width);
+}
+
+.workspace.outlineCollapsed {
+  --outline-pane-width: var(--collapsed-pane-width);
+}
+
+.workspace.contentFadeIn .editorPane,
+.workspace.contentFadeIn .previewPane {
+  animation: contentFadeIn 180ms cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
 .workspace.previewHidden {
-  grid-template-columns: 270px minmax(0, 1fr);
+  grid-template-columns: var(--library-pane-width) var(--outline-pane-width) minmax(0, 1fr) var(--ai-pane-width);
 }
 
 .workspace.previewHidden .previewPane {
@@ -811,7 +834,15 @@ button {
 }
 
 .workspace.aiMode {
-  grid-template-columns: 270px minmax(420px, 1fr) minmax(360px, 0.78fr);
+  --ai-pane-width: clamp(288px, 30vw, 460px);
+}
+
+.workspace.aiMode:not(.libraryCollapsed) {
+  --library-pane-width: min(var(--library-pane-expanded-width), clamp(180px, 22vw, 286px));
+}
+
+.workspace.aiMode:not(.outlineCollapsed) {
+  --outline-pane-width: min(var(--outline-pane-expanded-width), clamp(180px, 18vw, 220px));
 }
 
 .workspace.aiMode .previewPane {
@@ -820,15 +851,6 @@ button {
 
 .workspace.aiMode .aiPane {
   display: grid;
-}
-
-.workspace.aiModeIn .aiPane {
-  animation: aiPaneIn 240ms cubic-bezier(0.16, 1, 0.3, 1) both;
-}
-
-.workspace.aiModeIn .editorPane,
-.workspace.aiModeOut .editorPane {
-  animation: aiEditorSettle 240ms cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
 .workspace.mode-edit-to-preview .previewPane,
@@ -866,7 +888,7 @@ button {
 }
 
 .workspace.readingMode {
-  grid-template-columns: 270px minmax(0, 1fr);
+  grid-template-columns: var(--library-pane-width) var(--outline-pane-width) minmax(0, 1fr);
 }
 
 .workspace.readingMode .editorPane {
@@ -888,26 +910,570 @@ button {
   animation: modePaneIn 220ms cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
+.libraryPane,
 .outlinePane,
 .editorPane,
 .previewPane,
 .aiPane {
   min-height: 0;
   background: var(--surface);
-  transition: background-color 220ms ease, border-color 220ms ease;
+  transition:
+    background-color 220ms ease,
+    border-color 220ms ease,
+    opacity 240ms ease;
 }
 
-.outlinePane {
+.libraryPane {
+  position: relative;
   display: grid;
-  grid-template-rows: 48px minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: auto auto auto minmax(96px, auto) auto minmax(0, 1fr);
   border-right: 1px solid var(--border);
+  background: var(--surface);
+  overflow: hidden;
+  transition:
+    grid-template-rows 420ms cubic-bezier(0.16, 1, 0.3, 1),
+    background-color 220ms ease,
+    border-color 220ms ease;
 }
 
-.paneHeader {
+.libraryHeader {
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 10px;
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  min-height: 58px;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border-soft);
+  transition:
+    border-color 220ms ease,
+    padding 420ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.paneTitleGroup {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+  transition:
+    opacity 180ms cubic-bezier(0.16, 1, 0.3, 1),
+    transform 260ms cubic-bezier(0.16, 1, 0.3, 1),
+    visibility 180ms ease;
+}
+
+.libraryHeader strong,
+.libraryListHeader span {
+  font-size: 13px;
+  font-weight: 820;
+}
+
+.libraryHeader small,
+.libraryListHeader small {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 620;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.paneCollapseButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: 34px;
+  height: 34px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  padding: 0;
+  background: var(--surface-strong);
+  color: var(--muted);
+  cursor: pointer;
+  transition:
+    border-color 180ms ease,
+    color 180ms ease,
+    background-color 180ms ease,
+    transform 260ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.paneCollapseButton:hover {
+  border-color: var(--accent);
+  color: var(--accent-text);
+  transform: translateY(-1px);
+}
+
+.paneCollapseGlyph {
+  display: inline-block;
+  font-size: 18px;
+  font-weight: 900;
+  line-height: 1;
+  transition: transform 420ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.workspace.libraryCollapsed .libraryPane {
+  grid-template-rows: 54px 0 0 0 0 0;
+}
+
+.workspace.libraryCollapsed .libraryHeader {
+  justify-content: center;
+  gap: 0;
+  min-height: 54px;
+  padding: 10px 0;
+  border-bottom-color: transparent;
+}
+
+.workspace.libraryCollapsed .libraryPane .paneTitleGroup,
+.workspace.libraryCollapsed .libraryIconButton,
+.workspace.libraryCollapsed .libraryActions,
+.workspace.libraryCollapsed .librarySearch,
+.workspace.libraryCollapsed .folderList,
+.workspace.libraryCollapsed .libraryListHeader,
+.workspace.libraryCollapsed .libraryNoteList {
+  pointer-events: none;
+  visibility: hidden;
+  opacity: 0;
+  transform: translateX(-10px) scale(0.98);
+}
+
+.workspace.libraryCollapsed .libraryPane .paneTitleGroup,
+.workspace.libraryCollapsed .libraryIconButton {
+  position: absolute;
+  flex-basis: 0;
+  width: 0;
+  height: 0;
+  min-width: 0;
+  max-width: 0;
+  margin: 0;
+  padding: 0;
+  border-width: 0;
+  overflow: hidden;
+}
+
+.workspace.libraryCollapsed .libraryPane .paneCollapseGlyph {
+  transform: rotate(180deg);
+}
+
+.libraryIconButton {
+  flex: 0 0 auto;
+  width: 34px;
+  height: 34px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: var(--surface-strong);
+  color: var(--accent-text);
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 800;
+  transition:
+    opacity 180ms cubic-bezier(0.16, 1, 0.3, 1),
+    transform 260ms cubic-bezier(0.16, 1, 0.3, 1),
+    border-color 180ms ease,
+    color 180ms ease,
+    visibility 180ms ease;
+}
+
+.libraryActions {
+  display: grid;
+  grid-template-columns: 1fr 76px;
+  gap: 8px;
+  padding: 10px 12px 8px;
+  transition:
+    opacity 180ms cubic-bezier(0.16, 1, 0.3, 1),
+    transform 260ms cubic-bezier(0.16, 1, 0.3, 1),
+    visibility 180ms ease;
+}
+
+.libraryActionButton {
+  min-height: 32px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: var(--surface-strong);
+  color: var(--text);
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 780;
+}
+
+.libraryActionButton:hover,
+.libraryIconButton:hover {
+  border-color: var(--accent);
+  color: var(--accent-text);
+}
+
+.libraryActionButton:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.librarySearch {
+  display: grid;
+  gap: 6px;
+  padding: 0 12px 10px;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  transition:
+    opacity 180ms cubic-bezier(0.16, 1, 0.3, 1),
+    transform 260ms cubic-bezier(0.16, 1, 0.3, 1),
+    visibility 180ms ease;
+}
+
+.librarySearch input {
+  width: 100%;
+  height: 34px;
+  min-width: 0;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  padding: 0 10px;
+  background: var(--surface-strong);
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 620;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.folderList {
+  display: grid;
+  align-content: start;
+  gap: 3px;
+  max-height: 166px;
+  overflow: auto;
+  padding: 0 8px 10px;
+  border-bottom: 1px solid var(--border-soft);
+  transition:
+    opacity 180ms cubic-bezier(0.16, 1, 0.3, 1),
+    transform 260ms cubic-bezier(0.16, 1, 0.3, 1),
+    visibility 180ms ease;
+}
+
+.folderItem {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  min-height: 30px;
+  border: 0;
+  border-radius: 7px;
+  padding: 0 8px;
+  background: transparent;
+  color: var(--text);
+  cursor: pointer;
+  text-align: left;
+}
+
+.folderItem span {
+  overflow: hidden;
+  font-size: 13px;
+  font-weight: 690;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.folderItem small {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 760;
+}
+
+.folderItem:hover,
+.libraryNoteRow:hover {
+  background: var(--surface-strong);
+}
+
+.folderItem.active,
+.libraryNoteRow.active,
+.libraryNoteRow.contextOpen {
+  background: var(--accent-soft);
+  color: var(--accent-text);
+}
+
+.libraryListHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 38px;
+  padding: 0 12px;
+  color: var(--muted);
+  transition:
+    opacity 180ms cubic-bezier(0.16, 1, 0.3, 1),
+    transform 260ms cubic-bezier(0.16, 1, 0.3, 1),
+    visibility 180ms ease;
+}
+
+.libraryNoteList {
+  min-height: 0;
+  overflow: auto;
+  padding: 0 8px 12px;
+  transition:
+    opacity 180ms cubic-bezier(0.16, 1, 0.3, 1),
+    transform 260ms cubic-bezier(0.16, 1, 0.3, 1),
+    visibility 180ms ease;
+}
+
+.librarySectionHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 38px;
+  padding: 8px 4px 0;
+  color: var(--muted);
+}
+
+.librarySectionHeader span {
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.librarySectionHeader small {
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.libraryNoteRow {
+  position: relative;
+  width: 100%;
+  min-height: 38px;
+  border-radius: 8px;
+  transition:
+    background-color 160ms ease,
+    color 160ms ease;
+}
+
+.libraryNoteItem {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  min-height: 38px;
+  border: 0;
+  border-radius: 8px;
+  padding: 0 62px 0 10px;
+  background: transparent;
+  color: var(--text);
+  cursor: pointer;
+  text-align: left;
+}
+
+.libraryNoteItem strong {
+  min-width: 0;
+  overflow: hidden;
+  font-size: 14px;
+  font-weight: 720;
+  line-height: 1.3;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.libraryNoteRow.active .libraryNoteItem,
+.libraryNoteRow.contextOpen .libraryNoteItem {
+  color: var(--accent-text);
+}
+
+.libraryNotePinButton,
+.libraryNoteMore {
+  position: absolute;
+  top: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transform: translateY(-50%);
+}
+
+.libraryNotePinButton {
+  right: 34px;
+  width: 22px;
+  height: 22px;
+  border: 0;
+  border-radius: 50%;
+  padding: 0;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  opacity: 0;
+  pointer-events: none;
+  transition:
+    opacity 150ms ease,
+    color 150ms ease,
+    background-color 150ms ease,
+    transform 220ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.libraryNotePinButton svg {
+  width: 16px;
+  height: 16px;
+  stroke-width: 2;
+  transform: rotate(38deg);
+  transform-origin: center;
+}
+
+.libraryNoteMore {
+  right: 4px;
+  width: 28px;
+  height: 28px;
+  border: 0;
+  border-radius: 50%;
+  padding: 0;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  opacity: 0;
+  pointer-events: none;
+  transition:
+    opacity 150ms ease,
+    color 150ms ease,
+    background-color 150ms ease,
+    transform 220ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.libraryNoteMore svg {
+  width: 17px;
+  height: 17px;
+  stroke-width: 2.2;
+}
+
+.libraryNoteRow:hover .libraryNoteMore,
+.libraryNoteRow:hover .libraryNotePinButton,
+.libraryNoteRow:focus-within .libraryNoteMore,
+.libraryNoteRow:focus-within .libraryNotePinButton,
+.libraryNoteRow.active .libraryNoteMore,
+.libraryNoteRow.active .libraryNotePinButton,
+.libraryNoteRow.pinned .libraryNoteMore,
+.libraryNoteRow.pinned .libraryNotePinButton,
+.libraryNoteRow.contextOpen .libraryNoteMore,
+.libraryNoteRow.contextOpen .libraryNotePinButton {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.libraryNotePinButton:hover,
+.libraryNotePinButton:focus-visible,
+.libraryNoteMore:hover,
+.libraryNoteMore:focus-visible {
+  outline: none;
+  background: color-mix(in srgb, var(--surface) 76%, var(--border-soft));
+  color: var(--text);
+  transform: translateY(-50%) scale(1.06);
+}
+
+.libraryContextMenu {
+  position: fixed;
+  z-index: 180;
+  width: 210px;
+  padding: 7px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  box-shadow: 0 20px 48px rgba(16, 24, 40, 0.2);
+  transform-origin: var(--menu-origin, top left);
+  animation: libraryMenuIn 170ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.libraryContextMenu button {
+  display: grid;
+  grid-template-columns: 22px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  min-height: 38px;
+  border: 0;
+  border-radius: 6px;
+  padding: 0 10px;
+  background: transparent;
+  color: var(--text);
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 680;
+  letter-spacing: 0;
+  text-align: left;
+}
+
+.libraryContextMenu button:hover,
+.libraryContextMenu button:focus-visible,
+.libraryContextMenu button.submenuOpen {
+  outline: none;
+  background: var(--surface-strong);
+}
+
+.libraryContextMenu button:disabled {
+  cursor: default;
+  opacity: 0.48;
+}
+
+.libraryContextMenu button > svg {
+  width: 18px;
+  height: 18px;
+  stroke-width: 1.9;
+}
+
+.libraryContextMenu button > span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.libraryContextMenu button.danger {
+  color: #d12b24;
+}
+
+.libraryContextMenu button.danger:hover,
+.libraryContextMenu button.danger:focus-visible {
+  background: color-mix(in srgb, #d12b24 11%, var(--surface));
+}
+
+.libraryMenuDivider {
+  height: 1px;
+  margin: 6px 5px;
+  background: var(--border-soft);
+}
+
+.libraryEmpty {
+  display: grid;
+  gap: 7px;
+  margin: 10px 4px;
+  padding: 14px 12px;
+  border: 1px dashed var(--border);
+  border-radius: 8px;
+  background: var(--surface-strong);
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.libraryEmpty strong {
+  color: var(--text);
+  font-size: 14px;
+}
+
+.outlinePane {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: 48px minmax(0, 1fr);
+  border-right: 1px solid var(--border);
+  overflow: hidden;
+  transition:
+    grid-template-rows 420ms cubic-bezier(0.16, 1, 0.3, 1),
+    background-color 220ms ease,
+    border-color 220ms ease;
+}
+
+.paneHeader {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
   gap: 12px;
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
   padding: 0 16px;
   border-bottom: 1px solid var(--border-soft);
   color: var(--muted);
@@ -915,6 +1481,23 @@ button {
   font-weight: 800;
   letter-spacing: 0.04em;
   text-transform: uppercase;
+  transition:
+    border-color 220ms ease,
+    padding 420ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.paneHeader .paneTitleGroup {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  width: 100%;
+}
+
+.paneHeader .paneTitleGroup > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .paneHeader small {
@@ -932,16 +1515,101 @@ button {
   min-height: 0;
   overflow: auto;
   padding: 12px 10px 18px;
+  transition:
+    opacity 180ms cubic-bezier(0.16, 1, 0.3, 1),
+    transform 260ms cubic-bezier(0.16, 1, 0.3, 1),
+    visibility 180ms ease;
+}
+
+.workspace.outlineCollapsed .outlinePane {
+  grid-template-rows: 54px 0;
+}
+
+.workspace.outlineCollapsed .paneHeader {
+  justify-content: center;
+  gap: 0;
+  min-height: 54px;
+  padding: 10px 0;
+  border-bottom-color: transparent;
+}
+
+.workspace.outlineCollapsed .outlinePane .paneTitleGroup,
+.workspace.outlineCollapsed .outlineList {
+  pointer-events: none;
+  visibility: hidden;
+  opacity: 0;
+  transform: translateX(-10px) scale(0.98);
+}
+
+.workspace.outlineCollapsed .outlinePane .paneTitleGroup {
+  position: absolute;
+  flex-basis: 0;
+  width: 0;
+  height: 0;
+  min-width: 0;
+  max-width: 0;
+  margin: 0;
+  padding: 0;
+  border-width: 0;
+  overflow: hidden;
+}
+
+.workspace.outlineCollapsed .outlinePane .paneCollapseGlyph {
+  transform: rotate(180deg);
+}
+
+.paneResizeHandle {
+  position: absolute;
+  top: 0;
+  right: -5px;
+  bottom: 0;
+  z-index: 12;
+  width: 10px;
+  cursor: col-resize;
+  outline: none;
+}
+
+.paneResizeHandle::after {
+  content: "";
+  position: absolute;
+  top: 10px;
+  bottom: 10px;
+  left: 4px;
+  width: 2px;
+  border-radius: 999px;
+  background: transparent;
+  transition:
+    background-color 160ms ease,
+    box-shadow 160ms ease,
+    opacity 160ms ease;
+}
+
+.paneResizeHandle:hover::after,
+.paneResizeHandle:focus-visible::after,
+.paneResizeHandle.active::after {
+  background: color-mix(in srgb, var(--accent) 74%, var(--border));
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent-soft) 68%, transparent);
+}
+
+.workspace.libraryCollapsed #libraryResizeHandle,
+.workspace.outlineCollapsed #outlineResizeHandle {
+  display: none;
+}
+
+.paneResizing,
+.paneResizing * {
+  cursor: col-resize !important;
+  user-select: none !important;
 }
 
 .outlineItem {
   display: grid;
   grid-template-columns: 30px minmax(0, 1fr);
-  align-items: center;
+  align-items: start;
   width: 100%;
-  min-height: 34px;
+  min-height: 38px;
   margin: 2px 0;
-  padding: 0 10px 0 calc(8px + var(--depth, 0) * 22px);
+  padding: 7px 10px 7px calc(8px + var(--depth, 0) * 22px);
   border: 0;
   border-radius: 7px;
   background: transparent;
@@ -995,11 +1663,14 @@ button {
 }
 
 .outlineText {
+  display: -webkit-box;
   overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
   font-size: 14px;
   font-weight: 650;
+  line-height: 1.34;
+  white-space: normal;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
 }
 
 .outlineItem.level1 .outlineText {
@@ -1460,10 +2131,33 @@ button {
 }
 
 .aiPane {
-  display: none;
+  display: grid;
   grid-template-rows: auto auto minmax(0, 1fr) auto;
+  min-width: 0;
+  max-width: 100%;
   border-left: 1px solid var(--border);
   background: var(--surface);
+  overflow: hidden;
+  opacity: 0;
+  transform: translateX(14px);
+  pointer-events: none;
+  transition:
+    background-color 220ms ease,
+    border-color 220ms ease,
+    opacity 180ms cubic-bezier(0.16, 1, 0.3, 1),
+    transform 420ms cubic-bezier(0.16, 1, 0.3, 1);
+  will-change: opacity, transform;
+}
+
+.workspace.aiMode .aiPane {
+  opacity: 1;
+  transform: translateX(0);
+  pointer-events: auto;
+}
+
+.aiPane > * {
+  min-width: 0;
+  max-width: 100%;
 }
 
 .aiHeader {
@@ -1478,6 +2172,7 @@ button {
 .aiHeader div {
   display: grid;
   gap: 3px;
+  min-width: 0;
 }
 
 .aiHeader strong {
@@ -1485,11 +2180,15 @@ button {
 }
 
 .aiHeader span {
+  overflow: hidden;
   color: var(--muted);
   font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .aiCloseButton {
+  flex: 0 0 auto;
   width: 30px;
   height: 30px;
   border: 1px solid var(--border);
@@ -1528,6 +2227,7 @@ button {
 }
 
 .aiMessage {
+  min-width: 0;
   margin-bottom: 14px;
 }
 
@@ -1537,6 +2237,7 @@ button {
 }
 
 .aiBubble {
+  min-width: 0;
   max-width: 92%;
   border: 1px solid var(--border);
   border-radius: 9px;
@@ -1784,6 +2485,8 @@ button {
 }
 
 .aiComposer textarea {
+  width: 100%;
+  min-width: 0;
   resize: none;
   min-height: 62px;
   max-height: 140px;
@@ -2124,12 +2827,10 @@ button {
 
 @keyframes contentFadeIn {
   from {
-    opacity: 0.8;
-    transform: translateY(4px) scale(0.997);
+    opacity: 0.82;
   }
   to {
     opacity: 1;
-    transform: translateY(0) scale(1);
   }
 }
 
@@ -2152,28 +2853,6 @@ button {
   to {
     opacity: 1;
     transform: translateY(0);
-  }
-}
-
-@keyframes aiPaneIn {
-  from {
-    opacity: 0;
-    transform: translateX(18px) scale(0.985);
-  }
-  to {
-    opacity: 1;
-    transform: translateX(0) scale(1);
-  }
-}
-
-@keyframes aiEditorSettle {
-  from {
-    opacity: 0.9;
-    transform: translateX(-4px) scale(0.998);
-  }
-  to {
-    opacity: 1;
-    transform: translateX(0) scale(1);
   }
 }
 
@@ -2228,6 +2907,17 @@ button {
   }
 }
 
+@keyframes libraryMenuIn {
+  from {
+    opacity: 0;
+    transform: translateY(-5px) scale(0.975);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
@@ -2254,10 +2944,20 @@ button {
   }
 
   .workspace {
-    grid-template-columns: 230px minmax(340px, 1fr) minmax(320px, 0.9fr);
+    --library-pane-expanded-width: 250px;
+    --outline-pane-expanded-width: 190px;
+    grid-template-columns: var(--library-pane-width) var(--outline-pane-width) minmax(340px, 1fr);
   }
 
   .workspace.previewHidden {
-    grid-template-columns: 230px minmax(0, 1fr);
+    grid-template-columns: var(--library-pane-width) var(--outline-pane-width) minmax(0, 1fr) var(--ai-pane-width);
+  }
+
+  .workspace.aiMode {
+    --ai-pane-width: clamp(288px, 30vw, 340px);
+  }
+
+  .workspace:not(.previewHidden):not(.readingMode):not(.aiMode) .previewPane {
+    display: none;
   }
 }

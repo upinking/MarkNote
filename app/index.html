@@ -44,7 +44,7 @@
             <span class="fileRule" aria-hidden="true"></span>
           </button>
           <div class="recentPanel" id="recentPanel" hidden>
-            <div class="recentHeader" data-i18n="recentFiles">Recent files</div>
+            <div class="recentHeader" id="recentHeader">Recent files</div>
             <div class="recentList" id="recentList"></div>
           </div>
           <div class="fileContextMenu" id="fileContextMenu" hidden>
@@ -112,8 +112,8 @@
               <input type="checkbox" id="taskBracketSetting" />
             </label>
             <button class="settingsNavButton" id="cloudSettingsNavButton" type="button">
-              <span>局域网同步</span>
-              <small id="cloudSettingsSummary">未开启</small>
+              <span>同步</span>
+              <small id="cloudSettingsSummary">后续支持</small>
               <span class="settingsNavArrow">›</span>
             </button>
             <button class="settingsNavButton" id="aiSettingsNavButton" type="button">
@@ -128,24 +128,15 @@
           </div>
 
           <div class="settingsPage" id="cloudSettingsPage" hidden>
-            <label class="settingRow" for="cloudUrlInput">
-              <span>电脑地址</span>
-              <input class="settingInput wide" id="cloudUrlInput" type="text" autocomplete="off" readonly />
-            </label>
-            <label class="settingRow" for="cloudAnonKeyInput">
-              <span>同步码</span>
-              <input class="settingInput wide" id="cloudAnonKeyInput" type="text" autocomplete="off" readonly />
-            </label>
-            <div class="settingButtonGrid">
-              <button class="miniSettingButton" id="cloudSignInButton" type="button">开启同步</button>
-              <button class="miniSettingButton" id="cloudSignUpButton" type="button">停止</button>
+            <div class="syncPlaceholder">
+              <strong>手动同步后续支持</strong>
+              <span>当前版本先把桌面资料库和手机内部笔记库整理清楚。手机与桌面资料库之间的同步通道会单独设计。</span>
             </div>
-            <button class="miniSettingButton fullSettingButton" id="cloudLocalOnlyButton" type="button">复制手机端信息</button>
             <button class="settingAction" id="cloudUploadButton" type="button">
-              <span>刷新当前笔记</span>
+              <span>检查同步状态</span>
               <span class="settingActionIcon">↻</span>
             </button>
-            <div class="cloudStatus" id="cloudStatus">局域网同步未开启</div>
+            <div class="cloudStatus" id="cloudStatus">同步功能后续支持</div>
           </div>
 
           <div class="settingsPage" id="aiSettingsPage" hidden>
@@ -174,12 +165,46 @@
       </header>
 
       <main class="workspace" id="workspace">
-        <aside class="outlinePane">
+        <aside class="libraryPane" id="libraryPane">
+          <div class="libraryHeader">
+            <button class="paneCollapseButton" id="toggleLibraryPaneButton" type="button" aria-label="收起资料库" aria-expanded="true" title="收起资料库">
+              <span class="paneCollapseGlyph">‹</span>
+            </button>
+            <div class="paneTitleGroup">
+              <strong>资料库</strong>
+              <small id="libraryRootLabel">未选择文件夹</small>
+            </div>
+            <button class="libraryIconButton" id="chooseLibraryButton" type="button" title="选择资料库文件夹">⌘</button>
+          </div>
+          <div class="libraryActions">
+            <button class="libraryActionButton" id="importLibraryButton" type="button">导入 Markdown</button>
+            <button class="libraryActionButton" id="refreshLibraryButton" type="button">刷新</button>
+          </div>
+          <label class="librarySearch">
+            <span>搜索</span>
+            <input id="librarySearchInput" type="search" autocomplete="off" placeholder="标题、正文或文件夹" />
+          </label>
+          <nav class="folderList" id="folderList" aria-label="资料库文件夹"></nav>
+          <div class="libraryListHeader">
+            <span id="libraryListTitle">笔记</span>
+            <small id="libraryNoteCount">0</small>
+          </div>
+          <div class="libraryNoteList" id="libraryNoteList"></div>
+          <div class="paneResizeHandle" id="libraryResizeHandle" role="separator" aria-label="调整资料库宽度" aria-orientation="vertical" tabindex="0"></div>
+        </aside>
+
+        <aside class="outlinePane" id="outlinePane">
           <div class="paneHeader">
-            <span data-i18n="outline">Outline</span>
-            <small id="headingCount">0 headings</small>
+            <button class="paneCollapseButton" id="toggleOutlinePaneButton" type="button" aria-label="收起目录" aria-expanded="true" title="收起目录">
+              <span class="paneCollapseGlyph">‹</span>
+            </button>
+            <div class="paneTitleGroup">
+              <span data-i18n="outline">Outline</span>
+              <small id="headingCount">0 headings</small>
+            </div>
           </div>
           <nav class="outlineList" id="outlineList" aria-label="文章目录"></nav>
+          <div class="paneResizeHandle" id="outlineResizeHandle" role="separator" aria-label="调整目录宽度" aria-orientation="vertical" tabindex="0"></div>
         </aside>
 
         <section class="editorPane">
@@ -243,6 +268,35 @@
           </div>
         </div>
       </div>
+
+      <div class="libraryContextMenu" id="libraryContextMenu" role="menu" aria-label="笔记操作" hidden>
+        <button type="button" role="menuitem" data-library-action="rename">
+          <i data-lucide="pencil" aria-hidden="true"></i>
+          <span>重命名</span>
+        </button>
+        <button type="button" role="menuitem" data-library-action="duplicate">
+          <i data-lucide="copy" aria-hidden="true"></i>
+          <span>复制笔记</span>
+        </button>
+        <div class="libraryMenuDivider" role="separator"></div>
+        <button type="button" role="menuitem" data-library-action="show-in-folder">
+          <i data-lucide="folder-open" aria-hidden="true"></i>
+          <span>在访达中显示</span>
+        </button>
+        <button type="button" role="menuitem" data-library-action="export-pdf">
+          <i data-lucide="file-down" aria-hidden="true"></i>
+          <span>导出 PDF</span>
+        </button>
+        <button type="button" role="menuitem" data-library-action="archive">
+          <i id="libraryArchiveIcon" data-lucide="archive" aria-hidden="true"></i>
+          <span id="libraryArchiveLabel">归档</span>
+        </button>
+        <div class="libraryMenuDivider" role="separator"></div>
+        <button class="danger" type="button" role="menuitem" data-library-action="delete">
+          <i data-lucide="trash-2" aria-hidden="true"></i>
+          <span>删除</span>
+        </button>
+      </div>
     </div>
 
     <div class="modalBackdrop" id="renameDialog" hidden>
@@ -261,6 +315,7 @@
     <script src="./vendor/katex/katex.min.js"></script>
     <script src="./vendor/marked.umd.js"></script>
     <script src="./vendor/purify.min.js"></script>
+    <script src="./vendor/lucide.min.js"></script>
     <script src="./vendor/wysiwyg-editor.js"></script>
     <script src="./renderer.js"></script>
   </body>

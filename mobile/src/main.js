@@ -3,8 +3,6 @@ import { requestAiCompletion, aiProviders, defaultAiSettings } from "../../share
 import { extractHeadings, markdownDocumentToHtml, escapeHtml } from "../../shared/markdown.js";
 import {
   createEmptyNote,
-  mergeRemoteNotes,
-  normalizeRemoteNote,
   noteSyncStates,
   sortNotes,
   titleFromMarkdown
@@ -12,22 +10,37 @@ import {
 import "./styles.css";
 
 const keys = {
-  settings: "marknote.mobile.settings",
-  notes: "marknote.mobile.notes",
+  legacyNotes: "marknote.mobile.notes",
+  repositoryNotes: "marknote.mobile.repository.notes.v1",
+  migrationDone: "marknote.mobile.repository.migrated.v1",
   selectedId: "marknote.mobile.selectedId",
   ai: "marknote.mobile.ai"
 };
 
-const initialSettings = {
-  syncUrl: "",
-  syncCode: "",
-  localOnly: false
+const NoteRepository = {
+  list() {
+    migrateLegacyNotes();
+    return readNotesFromStorage(keys.repositoryNotes);
+  },
+  save(note) {
+    const notes = readNotesFromStorage(keys.repositoryNotes);
+    const nextNotes = sortNotes([
+      note,
+      ...notes.filter((item) => item.id !== note.id)
+    ]);
+    localStorage.setItem(keys.repositoryNotes, JSON.stringify(nextNotes));
+    return nextNotes;
+  },
+  delete(id) {
+    const notes = readNotesFromStorage(keys.repositoryNotes).filter((note) => note.id !== id);
+    localStorage.setItem(keys.repositoryNotes, JSON.stringify(notes));
+    return notes;
+  }
 };
 
 const state = {
-  settings: loadJson(keys.settings, initialSettings),
   aiSettings: loadJson(keys.ai, defaultAiSettings()),
-  notes: loadNotes(),
+  notes: NoteRepository.list(),
   selectedId: localStorage.getItem(keys.selectedId) || "",
   mode: "reader",
   panel: "",
@@ -35,7 +48,8 @@ const state = {
   syncing: false,
   toast: "",
   conflict: null,
-  syncMessage: "",
+  syncMessage: "手动同步后续支持",
+  searchQuery: "",
   aiPrompt: "",
   aiResult: "",
   aiLoading: false
@@ -47,16 +61,6 @@ init();
 
 async function init() {
   render();
-
-  window.addEventListener("online", () => {
-    showToast("网络已恢复，正在同步");
-    syncPendingNotes();
-  });
-  window.addEventListener("offline", () => showToast("已离线，修改会先保存在本机"));
-
-  if (hasLanSyncSettings()) {
-    await refreshNotes();
-  }
 
   if (!state.notes.length) {
     const note = createEmptyNote();
@@ -81,39 +85,46 @@ function loadJson(key, fallback) {
   }
 }
 
-function loadNotes() {
+function readNotesFromStorage(key) {
   try {
-    const notes = JSON.parse(localStorage.getItem(keys.notes) || "[]");
-    return Array.isArray(notes) ? sortNotes(notes) : [];
+    const notes = JSON.parse(localStorage.getItem(key) || "[]");
+    return Array.isArray(notes) ? sortNotes(notes.map(normalizeLocalNote)) : [];
   } catch {
     return [];
   }
 }
 
-function hasLanSyncSettings() {
-  return Boolean(state.settings.syncUrl?.trim() && state.settings.syncCode?.trim());
+function migrateLegacyNotes() {
+  if (localStorage.getItem(keys.migrationDone)) return;
+  const current = readNotesFromStorage(keys.repositoryNotes);
+  if (current.length) {
+    localStorage.setItem(keys.migrationDone, "1");
+    return;
+  }
+
+  const legacy = readNotesFromStorage(keys.legacyNotes);
+  if (legacy.length) {
+    localStorage.setItem(keys.repositoryNotes, JSON.stringify(legacy));
+  }
+  localStorage.setItem(keys.migrationDone, "1");
 }
 
-async function lanSyncFetch(path, options = {}) {
-  const baseUrl = state.settings.syncUrl.trim().replace(/\/+$/, "");
-  const code = encodeURIComponent(state.settings.syncCode.trim());
-  const separator = path.includes("?") ? "&" : "?";
-  const response = await fetch(`${baseUrl}${path}${separator}code=${code}`, {
-    ...options,
-    headers: {
-      "Content-Type": "application/json",
-      ...(options.headers || {})
-    }
-  });
-  const data = await response.json().catch(() => ({}));
-  if (!response.ok || data.ok === false) {
-    throw new Error(data.error || `HTTP ${response.status}`);
-  }
-  return data;
+function normalizeLocalNote(note) {
+  const now = new Date().toISOString();
+  return {
+    id: note.id || `local-${crypto.randomUUID()}`,
+    title: note.title || titleFromMarkdown(note.content || ""),
+    content: note.content || "",
+    created_at: note.created_at || now,
+    updated_at: note.updated_at || now,
+    deleted_at: null,
+    lastSyncedAt: note.lastSyncedAt || "",
+    syncState: noteSyncStates.synced
+  };
 }
 
 function saveLocalNotes() {
-  localStorage.setItem(keys.notes, JSON.stringify(sortNotes(state.notes)));
+  localStorage.setItem(keys.repositoryNotes, JSON.stringify(sortNotes(state.notes)));
   if (state.selectedId) localStorage.setItem(keys.selectedId, state.selectedId);
 }
 
@@ -159,108 +170,24 @@ async function saveDraft() {
     title: titleFromMarkdown(state.editorDraft),
     content: state.editorDraft,
     updated_at: now,
-    syncState: state.settings.localOnly ? noteSyncStates.synced : noteSyncStates.pending
+    syncState: noteSyncStates.synced
   };
   replaceNote(next);
   state.mode = "reader";
-  showToast(state.settings.localOnly ? "已保存到本机" : "已保存到本机，正在同步");
-  await syncNote(next);
+  showToast("已保存到本机");
   render();
 }
 
 function replaceNote(nextNote) {
-  state.notes = sortNotes(state.notes.map((note) => (note.id === nextNote.id ? nextNote : note)));
+  state.notes = NoteRepository.save(nextNote);
   saveLocalNotes();
-}
-
-async function refreshNotes() {
-  if (state.settings.localOnly || !hasLanSyncSettings()) return;
-
-  state.syncing = true;
-  render();
-  try {
-    const data = await lanSyncFetch("/notes");
-    state.notes = mergeRemoteNotes(state.notes, data.notes || []);
-    if (!selectedNote()) state.selectedId = state.notes[0]?.id || "";
-    saveLocalNotes();
-    await syncPendingNotes();
-    state.syncMessage = `已从电脑同步 ${data.notes?.length || 0} 篇笔记`;
-    showToast(state.syncMessage);
-  } catch (error) {
-    state.syncMessage = `同步失败：${error.message}`;
-    showToast(state.syncMessage);
-  } finally {
-    state.syncing = false;
-    render();
-  }
-}
-
-async function syncPendingNotes() {
-  if (state.settings.localOnly) return;
-  if (!navigator.onLine || !hasLanSyncSettings()) return;
-
-  const pending = state.notes.filter((note) => note.syncState === noteSyncStates.pending || note.id.startsWith("local-"));
-  for (const note of pending) {
-    await syncNote(note);
-  }
-}
-
-async function syncNote(note) {
-  if (state.settings.localOnly) {
-    replaceNote({ ...note, syncState: noteSyncStates.synced });
-    return;
-  }
-
-  if (!navigator.onLine || !hasLanSyncSettings()) {
-    replaceNote({ ...note, syncState: noteSyncStates.pending });
-    return;
-  }
-
-  state.syncing = true;
-  render();
-
-  try {
-    const payload = {
-      title: note.title,
-      content: note.content,
-      fileName: `${note.title || "未命名笔记"}.md`,
-      updated_at: note.updated_at
-    };
-
-    const data = await lanSyncFetch(`/notes/${encodeURIComponent(note.id)}`, {
-      method: "POST",
-      body: JSON.stringify(payload)
-    });
-    const synced = normalizeRemoteNote(data.note || { ...note, ...payload });
-    state.notes = sortNotes(state.notes.map((item) => (item.id === note.id ? synced : item)));
-    if (state.selectedId === note.id) state.selectedId = synced.id;
-    state.conflict = null;
-    saveLocalNotes();
-  } catch (error) {
-    replaceNote({ ...note, syncState: noteSyncStates.error });
-    showToast(`同步失败：${error.message}`);
-  } finally {
-    state.syncing = false;
-    render();
-  }
 }
 
 async function deleteSelectedNote() {
   const note = selectedNote();
   if (!note) return;
 
-  const deleted = {
-    ...note,
-    deleted_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-    syncState: note.id.startsWith("local-") ? noteSyncStates.synced : noteSyncStates.pending
-  };
-  state.notes = state.notes.filter((item) => item.id !== note.id);
-  if (!note.id.startsWith("local-")) {
-    state.notes.push(deleted);
-    await syncNote(deleted);
-    state.notes = state.notes.filter((item) => item.id !== note.id);
-  }
+  state.notes = NoteRepository.delete(note.id);
   state.selectedId = state.notes.find((item) => !item.deleted_at)?.id || "";
   state.mode = "reader";
   saveLocalNotes();
@@ -268,24 +195,15 @@ async function deleteSelectedNote() {
 }
 
 async function signOut() {
-  state.settings = { ...state.settings, syncUrl: "", syncCode: "", localOnly: true };
-  localStorage.setItem(keys.settings, JSON.stringify(state.settings));
-  showToast("已断开电脑同步");
+  showToast("手动同步后续支持");
   render();
 }
 
 async function saveSettings(event) {
   event.preventDefault();
-  const form = new FormData(event.currentTarget);
-  state.settings = {
-    syncUrl: String(form.get("syncUrl") || "").trim(),
-    syncCode: String(form.get("syncCode") || "").trim(),
-    localOnly: false
-  };
-  localStorage.setItem(keys.settings, JSON.stringify(state.settings));
-  showToast("同步信息已保存");
+  showToast("手动同步后续支持");
   state.panel = "";
-  await refreshNotes();
+  render();
 }
 
 function saveAiSettings(event) {
@@ -353,11 +271,10 @@ function resolveConflict(choice) {
   if (!state.conflict) return;
   const next = choice === "remote"
     ? state.conflict.remote
-    : { ...state.conflict.local, syncState: noteSyncStates.pending, lastSyncedAt: "" };
+    : { ...state.conflict.local, syncState: noteSyncStates.synced, lastSyncedAt: "" };
   replaceNote(next);
   state.selectedId = next.id;
   state.conflict = null;
-  if (choice === "local") syncNote(next);
   render();
 }
 
@@ -373,19 +290,12 @@ function showToast(message) {
 
 function syncLabel(note) {
   if (!note) return "";
-  if (state.settings.localOnly) return "本机";
-  if (state.syncing) return "同步中";
-  if (note.syncState === noteSyncStates.pending) return "待同步";
-  if (note.syncState === noteSyncStates.conflict) return "有冲突";
-  if (note.syncState === noteSyncStates.error) return "同步失败";
-  if (!navigator.onLine) return "离线";
-  return "已同步";
+  return "本机";
 }
 
 function render() {
   const note = selectedNote();
   const headings = extractHeadings(note?.content || "");
-  const needsSetup = !state.settings.localOnly && !hasLanSyncSettings();
 
   app.innerHTML = `
     <div class="mobileShell">
@@ -396,32 +306,19 @@ function render() {
         </button>
         <div class="topActions">
           <span class="syncPill ${note?.syncState || ""}">${syncLabel(note)}</span>
-          ${hasLanSyncSettings() && !state.settings.localOnly ? `<button class="iconButton" data-action="refresh" type="button" aria-label="同步">${iconRefresh()}</button>` : ""}
+          <button class="iconButton" data-action="refresh" type="button" aria-label="同步">${iconRefresh()}</button>
           <button class="iconButton" data-panel="settings" type="button" aria-label="设置">${iconSettings()}</button>
         </div>
       </header>
 
       ${state.conflict ? conflictBanner() : ""}
-      ${needsSetup ? setupView() : workspaceView(note, headings)}
+      ${workspaceView(note, headings)}
       ${state.toast ? `<div class="toast">${escapeHtml(state.toast)}</div>` : ""}
       ${state.panel ? panelView(note, headings) : ""}
     </div>
   `;
 
   bindEvents();
-}
-
-function setupView() {
-  return `
-    <main class="setupView">
-      <section class="intro">
-        <h1>连接你的电脑</h1>
-        <p>在电脑端打开“局域网同步”，把电脑地址和 6 位同步码填到这里。手机和电脑需要在同一个 Wi-Fi 下。</p>
-      </section>
-      ${settingsForm()}
-      <button class="ghostButton fullWidth" data-action="localOnly" type="button">先本机试用</button>
-    </main>
-  `;
 }
 
 function workspaceView(note, headings) {
@@ -431,21 +328,34 @@ function workspaceView(note, headings) {
 }
 
 function listView() {
-  const visibleNotes = state.notes.filter((note) => !note.deleted_at);
+  const visibleNotes = filteredNotes();
   return `
     <main class="noteListView">
       <div class="sectionHeader">
         <div>
           <h1>笔记</h1>
-          <p>${visibleNotes.length} 篇同步笔记</p>
+          <p>${visibleNotes.length} 篇本机笔记</p>
         </div>
         <button class="roundButton" data-action="new" type="button" aria-label="新建">${iconPlus()}</button>
       </div>
+      <label class="mobileSearch">
+        <span>搜索</span>
+        <input class="noteSearchInput" type="search" value="${escapeHtml(state.searchQuery)}" placeholder="标题或正文" autocomplete="off" />
+      </label>
       <div class="noteList">
         ${visibleNotes.map((note) => noteListItem(note)).join("")}
       </div>
     </main>
   `;
+}
+
+function filteredNotes() {
+  const query = state.searchQuery.trim().toLowerCase();
+  return state.notes.filter((note) => {
+    if (note.deleted_at) return false;
+    if (!query) return true;
+    return `${note.title} ${note.content}`.toLowerCase().includes(query);
+  });
 }
 
 function noteListItem(note) {
@@ -520,26 +430,7 @@ function panelView(note, headings) {
 }
 
 function settingsPanel() {
-  const userSection = hasLanSyncSettings() && !state.settings.localOnly
-    ? `<div class="userCard">
-        <div class="userCardInfo">
-          <strong>${escapeHtml(state.settings.syncUrl)}</strong>
-          <span>已连接电脑同步</span>
-        </div>
-        <button class="dangerButton" data-action="signOut" type="button">断开</button>
-      </div>`
-    : state.settings.localOnly
-      ? `<div class="userCard">
-          <div class="userCardInfo">
-            <strong>本机试用模式</strong>
-            <span>未连接电脑同步</span>
-          </div>
-          <button class="ghostButton" data-action="exitLocalOnly" type="button">连接电脑</button>
-        </div>`
-      : "";
-
   return `
-    ${userSection}
     ${settingsForm()}
     <form class="stackForm" data-form="aiSettings">
       <h2>AI 设置</h2>
@@ -571,15 +462,9 @@ function settingsPanel() {
 function settingsForm() {
   return `
     <form class="stackForm" data-form="settings">
-      <label>
-        <span>电脑地址</span>
-        <input name="syncUrl" value="${escapeHtml(state.settings.syncUrl)}" placeholder="http://192.168.1.8:49152" autocomplete="off" />
-      </label>
-      <label>
-        <span>同步码</span>
-        <input name="syncCode" value="${escapeHtml(state.settings.syncCode)}" placeholder="6 位数字" inputmode="numeric" autocomplete="off" />
-      </label>
-      <button class="primaryButton" type="submit">连接并同步</button>
+      <h2>同步</h2>
+      <p class="formHint">手机端现在由 App 自己管理笔记。与桌面资料库的手动同步会在后续版本支持。</p>
+      <button class="primaryButton" type="submit">检查同步状态</button>
       ${state.syncMessage ? `<p class="formHint">${escapeHtml(state.syncMessage)}</p>` : ""}
     </form>
   `;
@@ -638,12 +523,6 @@ function bindEvents() {
       if (action === "edit") setMode("editor");
       if (action === "cancelEdit") setMode("reader");
       if (action === "save") saveDraft();
-      if (action === "localOnly") {
-        state.settings = { ...state.settings, localOnly: true };
-        localStorage.setItem(keys.settings, JSON.stringify(state.settings));
-        showToast("已进入本机试用模式");
-        render();
-      }
       if (action === "delete") deleteSelectedNote();
       if (action === "closePanel") {
         state.panel = "";
@@ -651,14 +530,7 @@ function bindEvents() {
       }
       if (action === "signOut") signOut();
       if (action === "refresh") {
-        showToast("正在同步...");
-        refreshNotes().then(() => showToast("同步完成"));
-      }
-      if (action === "exitLocalOnly") {
-        state.settings = { ...state.settings, localOnly: false };
-        localStorage.setItem(keys.settings, JSON.stringify(state.settings));
-        showToast("已退出本机模式，请连接电脑");
-        render();
+        showToast("手动同步后续支持");
       }
       if (action === "applyAi") applyAiResult();
     });
@@ -691,6 +563,14 @@ function bindEvents() {
   if (editor) {
     editor.addEventListener("input", () => {
       state.editorDraft = editor.value;
+    });
+  }
+
+  const noteSearchInput = app.querySelector(".noteSearchInput");
+  if (noteSearchInput) {
+    noteSearchInput.addEventListener("input", (event) => {
+      state.searchQuery = event.target.value;
+      render();
     });
   }
 

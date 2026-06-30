@@ -3,7 +3,7 @@ const starterMarkdown = "";
 const translations = {
   zh: {
     new: "新建",
-    open: "打开",
+    open: "资料库",
     save: "保存",
     saveAs: "另存为",
     exportPdf: "导出 PDF",
@@ -17,6 +17,9 @@ const translations = {
     currentFileTitle: "当前文件和最近文件",
     recentFiles: "最近打开",
     noRecentFiles: "还没有最近文件",
+    recentLibraryNotes: "最近打开的笔记",
+    noRecentLibraryNotes: "还没有浏览过其他笔记",
+    importFromLibraryAction: "外部文件请使用资料库中的“导入 Markdown”",
     fileMissing: "文件无法打开，已从最近列表移除",
     currentFile: "当前文件",
     rename: "重命名",
@@ -88,7 +91,7 @@ const translations = {
     aiPromptOrganize: "请整理这篇笔记的结构，补充合适标题和层级，并返回一份完整 Markdown 草案。",
     aiPromptContinue: "请根据当前内容继续往下写，保持原有风格，并返回一份完整 Markdown 草案。",
     newTitle: "新建笔记",
-    openTitle: "打开 Markdown 文件",
+    openTitle: "选择资料库文件夹",
     saveTitle: "保存 Markdown 文件",
     closeHelpTitle: "关闭说明并回到原笔记",
     helpTitle: "打开 README 使用说明",
@@ -134,7 +137,7 @@ const translations = {
   },
   en: {
     new: "New",
-    open: "Open",
+    open: "Library",
     save: "Save",
     saveAs: "Save as",
     exportPdf: "Export PDF",
@@ -148,6 +151,9 @@ const translations = {
     currentFileTitle: "Current file and recent files",
     recentFiles: "Recent files",
     noRecentFiles: "No recent files yet",
+    recentLibraryNotes: "Recently opened notes",
+    noRecentLibraryNotes: "No other notes opened yet",
+    importFromLibraryAction: "Use Import Markdown in the library for external files",
     fileMissing: "File could not be opened and was removed from recents",
     currentFile: "Current file",
     rename: "Rename",
@@ -219,7 +225,7 @@ const translations = {
     aiPromptOrganize: "Organize this note with clear headings and hierarchy, and return a complete Markdown draft.",
     aiPromptContinue: "Continue this note in the same style, and return a complete Markdown draft.",
     newTitle: "New note",
-    openTitle: "Open Markdown file",
+    openTitle: "Choose library folder",
     saveTitle: "Save Markdown file",
     closeHelpTitle: "Close guide and return to the previous note",
     helpTitle: "Open README guide",
@@ -265,7 +271,7 @@ const translations = {
   },
   ja: {
     new: "新規",
-    open: "開く",
+    open: "ライブラリ",
     save: "保存",
     saveAs: "名前を付けて保存",
     exportPdf: "PDFを書き出す",
@@ -279,6 +285,9 @@ const translations = {
     currentFileTitle: "現在のファイルと最近のファイル",
     recentFiles: "最近使ったファイル",
     noRecentFiles: "最近使ったファイルはまだありません",
+    recentLibraryNotes: "最近開いたノート",
+    noRecentLibraryNotes: "他のノートはまだ開いていません",
+    importFromLibraryAction: "外部ファイルはライブラリの「Markdownを読み込む」を使用してください",
     fileMissing: "ファイルを開けなかったため、最近使った項目から削除しました",
     currentFile: "現在のファイル",
     rename: "名前を変更",
@@ -350,7 +359,7 @@ const translations = {
     aiPromptOrganize: "このノートを見出しと階層が分かりやすい構成に整理し、完全なMarkdown草案を返してください。",
     aiPromptContinue: "現在の内容に続けて、同じ文体で続きを書き、完全なMarkdown草案を返してください。",
     newTitle: "新規ノート",
-    openTitle: "Markdownファイルを開く",
+    openTitle: "ライブラリフォルダを選択",
     saveTitle: "Markdownファイルを保存",
     closeHelpTitle: "ガイドを閉じて前のノートに戻る",
     helpTitle: "READMEガイドを開く",
@@ -401,12 +410,20 @@ const recentFilesKey = "marknote.recentFiles.v1";
 const draftKey = "marknote.autosavedDraft.v1";
 const aiSettingsKey = "marknote.aiSettings.v1";
 const cloudSettingsKey = "marknote.cloudSettings.v1";
+const librarySettingsKey = "marknote.library.v1";
+const libraryMetadataKey = "marknote.library.metadata.v1";
+const libraryArchiveFolder = "归档";
+const libraryArchiveFilter = "__marknote_archive__";
 const platform = window.marknote?.platform || "browser";
 const isMac = platform === "darwin" || navigator.platform.toLowerCase().includes("mac");
 const themes = ["light", "dark", "paper", "forest", "ocean", "rose"];
 const viewModes = ["wysiwyg", "edit", "preview", "reading"];
 const languages = ["zh", "en", "ja"];
 const aiProviders = ["openai", "deepseek", "mimo"];
+const paneWidthLimits = {
+  library: { default: 286, min: 180, max: 420 },
+  outline: { default: 220, min: 180, max: 520 }
+};
 const aiProviderLabels = {
   openai: "OpenAI",
   deepseek: "DeepSeek",
@@ -423,7 +440,11 @@ const defaultPreferences = {
   viewMode: "wysiwyg",
   wordWrap: false,
   taskBracketCompat: true,
-  language: "zh"
+  language: "zh",
+  libraryCollapsed: false,
+  outlineCollapsed: false,
+  libraryPaneWidth: paneWidthLimits.library.default,
+  outlinePaneWidth: paneWidthLimits.outline.default
 };
 
 const defaultAiSettings = {
@@ -473,6 +494,9 @@ const state = {
   recentFiles: loadRecentFiles(),
   preferences: loadPreferences(),
   aiOpen: false,
+  aiClosing: false,
+  aiTransitionId: 0,
+  aiLayoutTimer: 0,
   aiPreviousViewMode: "",
   aiLoading: false,
   aiWorkingLabel: "",
@@ -480,13 +504,23 @@ const state = {
   aiSettings: loadAiSettings(),
   cloudSettings: loadCloudSettings(),
   cloudSession: null,
-  cloudStatus: "局域网同步未开启",
+  cloudStatus: "同步功能后续支持",
+  library: loadLibrarySettings(),
+  libraryMetadata: loadLibraryMetadata(),
+  libraryMenu: {
+    noteId: "",
+    opener: null,
+    anchorRect: null,
+    point: null
+  },
+  renameTargetId: "",
   settingsOpen: false,
   settingsPage: "main",
   syncingPreviewScroll: false,
   previewManualUntil: 0,
   activeHeadingScrollFrame: 0,
-  outlineAnimationTimer: 0
+  outlineAnimationTimer: 0,
+  paneResize: null
 };
 
 const elements = {
@@ -494,12 +528,15 @@ const elements = {
   wysiwygEditor: document.querySelector("#wysiwygEditor"),
   preview: document.querySelector("#preview"),
   previewPane: document.querySelector("#previewPane"),
+  libraryPane: document.querySelector("#libraryPane"),
+  outlinePane: document.querySelector("#outlinePane"),
   outlineList: document.querySelector("#outlineList"),
   headingCount: document.querySelector("#headingCount"),
   fileName: document.querySelector("#fileName"),
   fileSwitcher: document.querySelector("#fileSwitcher"),
   currentFileButton: document.querySelector("#currentFileButton"),
   recentPanel: document.querySelector("#recentPanel"),
+  recentHeader: document.querySelector("#recentHeader"),
   recentList: document.querySelector("#recentList"),
   fileContextMenu: document.querySelector("#fileContextMenu"),
   saveAsButton: document.querySelector("#saveAsButton"),
@@ -539,13 +576,23 @@ const elements = {
   aiModelSelect: document.querySelector("#aiModelSelect"),
   aiBaseUrlInput: document.querySelector("#aiBaseUrlInput"),
   aiApiKeyInput: document.querySelector("#aiApiKeyInput"),
-  cloudUrlInput: document.querySelector("#cloudUrlInput"),
-  cloudAnonKeyInput: document.querySelector("#cloudAnonKeyInput"),
-  cloudSignInButton: document.querySelector("#cloudSignInButton"),
-  cloudSignUpButton: document.querySelector("#cloudSignUpButton"),
-  cloudLocalOnlyButton: document.querySelector("#cloudLocalOnlyButton"),
   cloudUploadButton: document.querySelector("#cloudUploadButton"),
   cloudStatus: document.querySelector("#cloudStatus"),
+  toggleLibraryPaneButton: document.querySelector("#toggleLibraryPaneButton"),
+  toggleOutlinePaneButton: document.querySelector("#toggleOutlinePaneButton"),
+  libraryResizeHandle: document.querySelector("#libraryResizeHandle"),
+  outlineResizeHandle: document.querySelector("#outlineResizeHandle"),
+  chooseLibraryButton: document.querySelector("#chooseLibraryButton"),
+  importLibraryButton: document.querySelector("#importLibraryButton"),
+  refreshLibraryButton: document.querySelector("#refreshLibraryButton"),
+  libraryRootLabel: document.querySelector("#libraryRootLabel"),
+  librarySearchInput: document.querySelector("#librarySearchInput"),
+  folderList: document.querySelector("#folderList"),
+  libraryListTitle: document.querySelector("#libraryListTitle"),
+  libraryNoteCount: document.querySelector("#libraryNoteCount"),
+  libraryNoteList: document.querySelector("#libraryNoteList"),
+  libraryContextMenu: document.querySelector("#libraryContextMenu"),
+  libraryArchiveLabel: document.querySelector("#libraryArchiveLabel"),
   aiModelBadge: document.querySelector("#aiModelBadge"),
   settingsToggle: document.querySelector("#settingsToggle"),
   settingsPanel: document.querySelector("#settingsPanel"),
@@ -647,6 +694,11 @@ function scheduleDraftSave() {
 async function restoreDraftIfNeeded() {
   const draft = loadDraft();
   if (!draft) return;
+
+  if (state.library.rootPath && state.library.selectedId && draft.filePath !== state.filePath) {
+    clearDraft();
+    return;
+  }
 
   const payload = {
     title: t("restoreDraftTitle"),
@@ -1051,11 +1103,26 @@ function loadPreferences() {
       theme: themes.includes(migratedTheme) ? migratedTheme : defaultPreferences.theme,
       viewMode: viewModes.includes(migratedViewMode) ? migratedViewMode : defaultPreferences.viewMode,
       taskBracketCompat: saved.taskBracketCompat ?? defaultPreferences.taskBracketCompat,
-      language: languages.includes(saved.language) ? saved.language : defaultPreferences.language
+      language: languages.includes(saved.language) ? saved.language : defaultPreferences.language,
+      libraryCollapsed: Boolean(saved.libraryCollapsed ?? defaultPreferences.libraryCollapsed),
+      outlineCollapsed: Boolean(saved.outlineCollapsed ?? defaultPreferences.outlineCollapsed),
+      libraryPaneWidth: normalizePaneWidth(saved.libraryPaneWidth, "library"),
+      outlinePaneWidth: normalizePaneWidth(saved.outlinePaneWidth, "outline")
     };
   } catch {
     return { ...defaultPreferences };
   }
+}
+
+function normalizePaneWidth(value, pane) {
+  const limits = paneWidthLimits[pane];
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) return limits.default;
+  return clamp(Math.round(numeric), limits.min, limits.max);
+}
+
+function clamp(value, min, max) {
+  return Math.min(Math.max(value, min), max);
 }
 
 function loadAiSettings() {
@@ -1111,66 +1178,378 @@ function saveCloudSettings() {
   localStorage.setItem(cloudSettingsKey, JSON.stringify(state.cloudSettings));
 }
 
-async function initCloudSession() {
-  const status = await window.marknote?.lanSyncStatus?.();
-  if (status?.running) {
-    state.cloudSession = status;
-    state.cloudSettings.lastUrl = status.urls?.[0] || "";
-    state.cloudSettings.lastCode = status.code || "";
-    state.cloudStatus = lanSyncStatusText(status);
+function loadLibrarySettings() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(librarySettingsKey) || "{}");
+    return {
+      rootPath: saved.rootPath || "",
+      selectedId: saved.selectedId || "",
+      selectedFolder: "",
+      searchQuery: "",
+      notes: [],
+      loading: false
+    };
+  } catch {
+    return {
+      rootPath: "",
+      selectedId: "",
+      selectedFolder: "",
+      searchQuery: "",
+      notes: [],
+      loading: false
+    };
+  }
+}
+
+function saveLibrarySettings() {
+  localStorage.setItem(librarySettingsKey, JSON.stringify({
+    rootPath: state.library.rootPath,
+    selectedId: state.library.selectedId
+  }));
+}
+
+function loadLibraryMetadata() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(libraryMetadataKey) || "{}");
+    return {
+      libraries: saved?.libraries && typeof saved.libraries === "object" ? saved.libraries : {}
+    };
+  } catch {
+    return { libraries: {} };
+  }
+}
+
+function saveLibraryMetadata() {
+  localStorage.setItem(libraryMetadataKey, JSON.stringify(state.libraryMetadata));
+}
+
+function currentLibraryMetadata() {
+  const rootPath = state.library.rootPath || "";
+  if (!state.libraryMetadata.libraries[rootPath]) {
+    state.libraryMetadata.libraries[rootPath] = { pinnedPaths: [], recentPaths: [] };
+  }
+  const metadata = state.libraryMetadata.libraries[rootPath];
+  if (!Array.isArray(metadata.pinnedPaths)) metadata.pinnedPaths = [];
+  if (!Array.isArray(metadata.recentPaths)) metadata.recentPaths = [];
+  return metadata;
+}
+
+function currentLibraryPinnedPaths() {
+  return new Set(currentLibraryMetadata().pinnedPaths);
+}
+
+function isLibraryNotePinned(noteId) {
+  return Boolean(noteId && currentLibraryPinnedPaths().has(noteId));
+}
+
+function setLibraryNotePinned(noteId, pinned) {
+  const metadata = currentLibraryMetadata();
+  const paths = new Set(metadata.pinnedPaths);
+  if (pinned) paths.add(noteId);
+  else paths.delete(noteId);
+  metadata.pinnedPaths = [...paths];
+  saveLibraryMetadata();
+}
+
+function currentLibraryRecentPaths() {
+  return currentLibraryMetadata().recentPaths;
+}
+
+function rememberRecentLibraryNote(noteId) {
+  if (!state.library.rootPath || !noteId) return;
+  const metadata = currentLibraryMetadata();
+  metadata.recentPaths = [
+    noteId,
+    ...metadata.recentPaths.filter((path) => path !== noteId)
+  ].slice(0, 8);
+  saveLibraryMetadata();
+}
+
+function forgetRecentLibraryNote(noteId) {
+  if (!noteId) return;
+  const metadata = currentLibraryMetadata();
+  const nextPaths = metadata.recentPaths.filter((path) => path !== noteId);
+  if (nextPaths.length === metadata.recentPaths.length) return;
+  metadata.recentPaths = nextPaths;
+  saveLibraryMetadata();
+}
+
+function remapLibraryMetadataPath(previousPath, nextPath) {
+  if (!previousPath || !nextPath || previousPath === nextPath) return;
+  const metadata = currentLibraryMetadata();
+  const pinnedPaths = new Set(metadata.pinnedPaths);
+  if (pinnedPaths.delete(previousPath)) pinnedPaths.add(nextPath);
+  metadata.pinnedPaths = [...pinnedPaths];
+  metadata.recentPaths = metadata.recentPaths.map((path) => path === previousPath ? nextPath : path);
+  saveLibraryMetadata();
+}
+
+function pruneLibraryMetadataPaths() {
+  if (!state.library.rootPath) return;
+  const metadata = currentLibraryMetadata();
+  const validPaths = new Set(state.library.notes.map((note) => note.id));
+  const nextPinnedPaths = metadata.pinnedPaths.filter((path) => validPaths.has(path));
+  const nextRecentPaths = metadata.recentPaths.filter((path) => validPaths.has(path));
+  if (
+    nextPinnedPaths.length === metadata.pinnedPaths.length
+    && nextRecentPaths.length === metadata.recentPaths.length
+  ) return;
+  metadata.pinnedPaths = nextPinnedPaths;
+  metadata.recentPaths = nextRecentPaths;
+  saveLibraryMetadata();
+}
+
+function libraryNoteById(noteId) {
+  return state.library.notes.find((note) => note.id === noteId) || null;
+}
+
+function isArchivedLibraryPath(relativePath) {
+  return String(relativePath || "").startsWith(`${libraryArchiveFolder}/`);
+}
+
+function isArchivedLibraryNote(note) {
+  return isArchivedLibraryPath(note?.relativePath || note?.id);
+}
+
+function libraryPathFileName(relativePath) {
+  return String(relativePath || "").split("/").filter(Boolean).pop() || "";
+}
+
+function libraryPathExtension(relativePath) {
+  const fileName = libraryPathFileName(relativePath);
+  const dot = fileName.lastIndexOf(".");
+  return dot > 0 ? fileName.slice(dot) : ".md";
+}
+
+function libraryPathBaseName(relativePath) {
+  const fileName = libraryPathFileName(relativePath);
+  const extension = libraryPathExtension(fileName);
+  return fileName.slice(0, Math.max(0, fileName.length - extension.length));
+}
+
+function isLibraryMode() {
+  return Boolean(state.library.rootPath && !state.isHelpOpen);
+}
+
+function currentLibraryNote() {
+  return state.library.notes.find((note) => note.id === state.library.selectedId) || null;
+}
+
+function resetEditorForEmptyLibrary(options = {}) {
+  state.markdown = "";
+  state.savedMarkdown = "";
+  state.filePath = "";
+  state.fileName = t("untitled");
+  state.activeHeadingId = "";
+  state.saveStatus = "saved";
+  elements.editor.value = "";
+  syncWysiwygSoon();
+  if (!options.preserveDraft) clearDraft();
+}
+
+function setLibraryNotes(notes = []) {
+  state.library.notes = notes.map((note) => ({
+    ...note,
+    id: note.id || note.relativePath,
+    relativePath: note.relativePath || note.id,
+    folder: note.folder || ""
+  }));
+  pruneLibraryMetadataPaths();
+}
+
+async function chooseLibrary() {
+  if (state.isHelpOpen) closeHelp();
+  if (!(await confirmIfDirty())) return false;
+
+  const result = await window.marknote?.chooseLibrary?.();
+  if (!result?.rootPath) return false;
+
+  state.library.rootPath = result.rootPath;
+  setLibraryNotes(result.notes || []);
+  state.library.selectedFolder = "";
+  state.library.searchQuery = "";
+  state.library.selectedId = filteredLibraryNotes()[0]?.id || "";
+  saveLibrarySettings();
+  if (state.library.selectedId) {
+    await selectLibraryNote(state.library.selectedId, { skipDirtyCheck: true });
   } else {
-    state.cloudSession = null;
-    state.cloudStatus = "局域网同步未开启";
+    resetEditorForEmptyLibrary();
   }
-  saveCloudSettings();
-  renderCloudSettings();
+  render();
+  showToast("资料库已打开");
+  return true;
+}
 
-  window.marknote?.onLanSyncNoteUpdated?.((note) => {
-    applyLanSyncedNote(note);
+async function refreshLibrary(options = {}) {
+  if (!state.library.rootPath || !window.marknote?.scanLibrary) {
+    renderLibrary();
+    return false;
+  }
+
+  if (!options.skipDirtyCheck && state.markdown !== state.savedMarkdown && !(await confirmIfDirty())) {
+    return false;
+  }
+
+  state.library.loading = true;
+  renderLibrary();
+  try {
+    const result = await window.marknote.scanLibrary({ rootPath: state.library.rootPath });
+    setLibraryNotes(result?.notes || []);
+    if (!filteredLibraryNotes().some((note) => note.id === state.library.selectedId)) {
+      state.library.selectedId = filteredLibraryNotes()[0]?.id || "";
+    }
+    saveLibrarySettings();
+    if (options.selectCurrent !== false) {
+      if (state.library.selectedId) {
+        await selectLibraryNote(state.library.selectedId, {
+          skipDirtyCheck: true,
+          quiet: true,
+          preserveDraft: options.preserveDraft
+        });
+      } else {
+        resetEditorForEmptyLibrary({ preserveDraft: options.preserveDraft });
+      }
+    }
+    render();
+    return true;
+  } finally {
+    state.library.loading = false;
+    renderLibrary();
+  }
+}
+
+async function selectLibraryNote(noteId, options = {}) {
+  if (!noteId) return false;
+  if (!options.skipDirtyCheck && !(await confirmIfDirty())) return false;
+
+  const note = await window.marknote?.readLibraryNote?.({
+    rootPath: state.library.rootPath,
+    relativePath: noteId
   });
+  if (!note) return false;
+
+  const normalized = { ...note, id: note.id || note.relativePath };
+  state.library.selectedId = normalized.id;
+  rememberRecentLibraryNote(normalized.id);
+  state.markdown = normalized.content || "";
+  state.savedMarkdown = state.markdown;
+  state.filePath = normalized.filePath || "";
+  state.fileName = normalized.relativePath || normalized.title || t("untitled");
+  state.activeHeadingId = "";
+  state.saveStatus = "saved";
+  elements.editor.value = state.markdown;
+  syncWysiwygSoon();
+  if (!options.preserveDraft) clearDraft();
+  saveLibrarySettings();
+  render();
+  if (!options.quiet) playContentFade();
+  return true;
 }
 
-async function signInCloudWithPassword() {
-  if (state.preferences.viewMode === "wysiwyg") {
-    await syncStateFromWysiwyg();
+async function saveLibraryNote() {
+  if (!state.library.rootPath) return false;
+
+  state.saveStatus = "saving";
+  updateStatus();
+  const relativePath = state.library.selectedId || uniqueClientRelativePath(`${libraryFileNameFromTitle(titleFromMarkdown(state.markdown))}.md`);
+  const note = await window.marknote?.saveLibraryNote?.({
+    rootPath: state.library.rootPath,
+    relativePath,
+    content: state.markdown
+  });
+  if (!note) return false;
+
+  const normalized = { ...note, id: note.id || note.relativePath };
+  state.library.selectedId = normalized.id;
+  state.filePath = normalized.filePath || "";
+  state.fileName = normalized.relativePath;
+  state.savedMarkdown = state.markdown;
+  state.saveStatus = "saved";
+  setLibraryNotes([
+    normalized,
+    ...state.library.notes.filter((item) => item.id !== normalized.id)
+  ]);
+  await refreshLibrary({ selectCurrent: false, skipDirtyCheck: true });
+  clearDraft();
+  render();
+  showToast(t("saveSuccess"));
+  return true;
+}
+
+async function createLibraryNote() {
+  if (!state.library.rootPath) {
+    showToast("请先选择资料库文件夹");
+    return false;
+  }
+  if (!(await confirmIfDirty())) return false;
+
+  const relativePath = uniqueClientRelativePath(`${t("untitledHeading")}.md`);
+  const content = `# ${t("untitledHeading")}\n\n${t("startWriting")}\n`;
+  const note = await window.marknote?.saveLibraryNote?.({
+    rootPath: state.library.rootPath,
+    relativePath,
+    content
+  });
+  if (!note) return false;
+
+  state.library.selectedFolder = "";
+  await refreshLibrary({ selectCurrent: false, skipDirtyCheck: true });
+  await selectLibraryNote(note.relativePath || note.id, { skipDirtyCheck: true });
+  showToast("已新建笔记");
+  return true;
+}
+
+async function importFilesToLibrary(filePaths = []) {
+  if (!state.library.rootPath) {
+    showToast("请先选择资料库文件夹");
+    return false;
+  }
+  const result = await window.marknote?.importLibraryFiles?.({
+    rootPath: state.library.rootPath,
+    filePaths
+  });
+  if (!result?.ok) {
+    showToast("导入失败");
+    return false;
   }
 
-  state.cloudStatus = "正在开启局域网同步...";
-  renderCloudSettings();
-  const result = await window.marknote?.startLanSync?.(buildLanSyncPayload());
-  state.cloudSession = result?.running ? result : null;
-  state.cloudSettings.lastUrl = result?.urls?.[0] || "";
-  state.cloudSettings.lastCode = result?.code || "";
-  state.cloudStatus = result?.running ? lanSyncStatusText(result) : "无法开启局域网同步";
-  saveCloudSettings();
-  renderCloudSettings();
-  showToast(state.cloudStatus);
+  setLibraryNotes(result.notes || []);
+  const firstVisibleNote = filteredLibraryNotes()[0];
+  if (!state.library.selectedId && firstVisibleNote) {
+    await selectLibraryNote(firstVisibleNote.id, { skipDirtyCheck: true, quiet: true });
+  }
+  render();
+  showToast(result.imported ? `已导入 ${result.imported} 篇笔记` : "没有导入新文件");
+  return true;
 }
 
-async function signUpCloudWithPassword() {
-  await window.marknote?.stopLanSync?.();
+function uniqueClientRelativePath(preferred, excludedPath = "") {
+  const existing = new Set(state.library.notes
+    .map((note) => note.relativePath || note.id)
+    .filter((relativePath) => relativePath !== excludedPath));
+  const dot = preferred.lastIndexOf(".");
+  const base = dot > 0 ? preferred.slice(0, dot) : preferred;
+  const ext = dot > 0 ? preferred.slice(dot) : ".md";
+  let candidate = preferred;
+  let index = 2;
+  while (existing.has(candidate)) {
+    candidate = `${base} ${index}${ext}`;
+    index += 1;
+  }
+  return candidate;
+}
+
+function libraryFileNameFromTitle(title) {
+  return String(title || t("untitledHeading"))
+    .replace(/[\\/:*?"<>|]/g, "-")
+    .replace(/\s+/g, " ")
+    .trim() || t("untitledHeading");
+}
+
+async function initCloudSession() {
   state.cloudSession = null;
-  state.cloudSettings.lastUrl = "";
-  state.cloudSettings.lastCode = "";
-  state.cloudStatus = "局域网同步已停止";
-  saveCloudSettings();
+  state.cloudStatus = "同步功能后续支持";
   renderCloudSettings();
-  showToast("已停止局域网同步");
-}
-
-function useLocalOnlyCloudMode() {
-  const url = state.cloudSession?.urls?.[0] || state.cloudSettings.lastUrl;
-  const code = state.cloudSession?.code || state.cloudSettings.lastCode;
-  const text = url && code ? `电脑地址：${url}\n同步码：${code}` : "";
-  if (!text) {
-    showToast("请先开启局域网同步");
-    return;
-  }
-  navigator.clipboard?.writeText(text).then(() => {
-    showToast("已复制手机端同步信息");
-  }).catch(() => {
-    showToast(text);
-  });
 }
 
 function titleFromMarkdown(markdown) {
@@ -1186,69 +1565,12 @@ function titleFromMarkdown(markdown) {
 }
 
 async function uploadCurrentNoteToCloud() {
-  if (!state.cloudSession) {
-    showToast("请先开启局域网同步");
-    return;
-  }
-
-  if (state.preferences.viewMode === "wysiwyg") {
-    await syncStateFromWysiwyg();
-  }
-
-  state.cloudStatus = "正在刷新共享笔记...";
-  renderCloudSettings();
-  const result = await window.marknote?.updateLanSync?.(buildLanSyncPayload());
-  state.cloudSession = result?.running ? result : null;
-  state.cloudSettings.lastUrl = result?.urls?.[0] || state.cloudSettings.lastUrl || "";
-  state.cloudSettings.lastCode = result?.code || state.cloudSettings.lastCode || "";
-  state.cloudStatus = result?.running ? "当前笔记已刷新到手机同步入口" : "局域网同步未开启";
-  saveCloudSettings();
-  renderCloudSettings();
-  showToast(state.cloudStatus);
+  showToast("手动同步后续支持");
 }
 
 function renderCloudSettings() {
-  if (!elements.cloudUrlInput) return;
-  elements.cloudUrlInput.value = state.cloudSession?.urls?.[0] || state.cloudSettings.lastUrl || "";
-  elements.cloudAnonKeyInput.value = state.cloudSession?.code || state.cloudSettings.lastCode || "";
-  elements.cloudStatus.textContent = state.cloudStatus || (state.cloudSession ? lanSyncStatusText(state.cloudSession) : "局域网同步未开启");
-  elements.cloudSignInButton.textContent = state.cloudSession ? "重新开启" : "开启同步";
-  elements.cloudSignUpButton.disabled = !state.cloudSession;
-  elements.cloudUploadButton.disabled = !state.cloudSession;
-  elements.cloudLocalOnlyButton.disabled = !state.cloudSession;
-}
-
-function buildLanSyncPayload() {
-  const now = new Date().toISOString();
-  return {
-    notes: [{
-      id: "current",
-      title: titleFromMarkdown(state.markdown),
-      content: state.markdown,
-      fileName: state.fileName || t("untitled"),
-      filePath: state.filePath,
-      updated_at: now
-    }]
-  };
-}
-
-function lanSyncStatusText(status) {
-  const url = status?.urls?.[0] || "";
-  const code = status?.code || "";
-  if (!url || !code) return "局域网同步已开启";
-  return `手机输入 ${url}，同步码 ${code}`;
-}
-
-function applyLanSyncedNote(note) {
-  if (!note || note.id !== "current") return;
-  state.markdown = note.content || "";
-  state.savedMarkdown = state.markdown;
-  state.fileName = note.fileName || state.fileName;
-  state.saveStatus = "saved";
-  elements.editor.value = state.markdown;
-  syncWysiwygSoon();
-  render();
-  showToast("手机上的修改已同步到电脑");
+  if (!elements.cloudStatus) return;
+  elements.cloudStatus.textContent = state.cloudStatus || "同步功能后续支持";
 }
 
 function currentAiProvider() {
@@ -1334,11 +1656,15 @@ function createAiMessage(role, content, extra = {}) {
 }
 
 async function openAiPanel() {
-  if (!state.aiOpen) {
+  const wasVisible = state.aiOpen || state.aiClosing;
+  if (!wasVisible) {
     state.aiPreviousViewMode = state.preferences.viewMode;
   }
 
-  state.aiOpen = true;
+  window.clearTimeout(state.aiLayoutTimer);
+  state.aiTransitionId += 1;
+  const transitionId = state.aiTransitionId;
+  state.aiClosing = false;
   state.settingsOpen = false;
   state.recentOpen = false;
   state.fileContextOpen = false;
@@ -1347,23 +1673,36 @@ async function openAiPanel() {
   }
 
   await setViewMode("wysiwyg");
+  if (transitionId !== state.aiTransitionId) return;
+
+  state.aiOpen = true;
   render();
-  playAiLayoutAnimation(true);
   elements.aiInput?.focus();
 }
 
 async function closeAiPanel() {
   if (!state.aiOpen) return;
 
+  window.clearTimeout(state.aiLayoutTimer);
+  state.aiTransitionId += 1;
+  const transitionId = state.aiTransitionId;
   const previousViewMode = state.aiPreviousViewMode;
   state.aiOpen = false;
-  state.aiPreviousViewMode = "";
+  state.aiClosing = true;
   render();
-  playAiLayoutAnimation(false);
 
-  if (previousViewMode && previousViewMode !== state.preferences.viewMode) {
-    await setViewMode(previousViewMode);
-  }
+  const duration = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ? 0 : 420;
+  state.aiLayoutTimer = window.setTimeout(async () => {
+    if (transitionId !== state.aiTransitionId) return;
+
+    state.aiClosing = false;
+    state.aiPreviousViewMode = "";
+    render();
+
+    if (previousViewMode && previousViewMode !== state.preferences.viewMode) {
+      await setViewMode(previousViewMode);
+    }
+  }, duration);
 }
 
 async function toggleAiPanel() {
@@ -1381,7 +1720,7 @@ function markdownPreviewHtml(markdown) {
 function renderAiPanel() {
   if (!elements.aiPane) return;
 
-  elements.aiPane.hidden = !state.aiOpen;
+  elements.aiPane.hidden = !state.aiOpen && !state.aiClosing;
   elements.aiToggle.classList.toggle("active", state.aiOpen);
   elements.aiProviderSelect.value = currentAiProvider();
   const model = currentAiModel();
@@ -3113,6 +3452,7 @@ function renderOutline() {
     if (heading.id === state.activeHeadingId) button.classList.add("active");
     button.type = "button";
     button.dataset.headingId = heading.id;
+    button.title = heading.text;
     button.style.setProperty("--depth", heading.level - 1);
     button.innerHTML = `
       <span class="outlineGuide">${outlineGlyph(index, hasChildren, isCollapsed)}</span>
@@ -3277,6 +3617,37 @@ function renderRecentFiles() {
   elements.recentPanel.hidden = !state.recentOpen;
   elements.currentFileButton.classList.toggle("active", state.recentOpen);
 
+  if (state.library.rootPath) {
+    elements.recentHeader.textContent = t("recentLibraryNotes");
+    const recentNotes = currentLibraryRecentPaths()
+      .map((noteId) => libraryNoteById(noteId))
+      .filter(Boolean);
+
+    if (recentNotes.length === 0) {
+      const empty = document.createElement("div");
+      empty.className = "recentEmpty";
+      empty.textContent = t("noRecentLibraryNotes");
+      elements.recentList.append(empty);
+      return;
+    }
+
+    recentNotes.forEach((note) => {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "recentItem libraryRecentItem";
+      if (note.id === state.library.selectedId) button.classList.add("active");
+      button.innerHTML = `<span class="recentName">${escapeHtml(note.title || note.relativePath)}</span>`;
+      button.addEventListener("click", async () => {
+        closeRecentPanel();
+        if (note.id !== state.library.selectedId) await selectLibraryNote(note.id);
+      });
+      elements.recentList.append(button);
+    });
+    return;
+  }
+
+  elements.recentHeader.textContent = t("recentFiles");
+
   if (state.recentFiles.length === 0) {
     const empty = document.createElement("div");
     empty.className = "recentEmpty";
@@ -3301,25 +3672,543 @@ function renderRecentFiles() {
   });
 }
 
-function openRenameDialog() {
-  closeFileContextMenu();
+function renderLibrary() {
+  if (!elements.libraryNoteList) return;
 
-  if (!state.filePath || state.isHelpOpen) {
+  const rootLabel = state.library.rootPath
+    ? state.library.rootPath.split(/[\\/]/).filter(Boolean).pop()
+    : "未选择文件夹";
+  elements.libraryRootLabel.textContent = state.library.loading ? "正在读取..." : rootLabel;
+  elements.librarySearchInput.value = state.library.searchQuery || "";
+  elements.importLibraryButton.disabled = !state.library.rootPath;
+  elements.refreshLibraryButton.disabled = !state.library.rootPath || state.library.loading;
+
+  renderFolderList();
+  renderLibraryNoteList();
+}
+
+function renderFolderList() {
+  elements.folderList.innerHTML = "";
+  const folders = libraryFolders();
+  folders.forEach((folder) => {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "folderItem";
+    if (folder.value === state.library.selectedFolder) button.classList.add("active");
+    button.dataset.folder = folder.value;
+    button.innerHTML = `
+      <span>${escapeHtml(folder.label)}</span>
+      <small>${folder.count}</small>
+    `;
+    elements.folderList.append(button);
+  });
+}
+
+function libraryFolders() {
+  const activeNotes = state.library.notes.filter((note) => !isArchivedLibraryNote(note));
+  const archiveCount = state.library.notes.length - activeNotes.length;
+  const counts = new Map();
+  activeNotes.forEach((note) => {
+    const folder = note.folder || "";
+    if (!folder) return;
+    counts.set(folder, (counts.get(folder) || 0) + 1);
+  });
+
+  return [
+    { value: "", label: "全部", count: activeNotes.length },
+    ...[...counts.entries()]
+      .sort(([a], [b]) => a.localeCompare(b, "zh-Hans-CN"))
+      .map(([folder, count]) => ({
+        value: folder,
+        label: folder,
+        count
+      })),
+    { value: libraryArchiveFilter, label: "归档", count: archiveCount }
+  ];
+}
+
+function filteredLibraryNotes() {
+  const query = normalizeSearchText(state.library.searchQuery);
+  const pinnedPaths = currentLibraryPinnedPaths();
+  return state.library.notes.filter((note) => {
+    const isArchived = isArchivedLibraryNote(note);
+    const folderMatches = state.library.selectedFolder === libraryArchiveFilter
+      ? isArchived
+      : !isArchived && (!state.library.selectedFolder || note.folder === state.library.selectedFolder);
+    if (!folderMatches) return false;
+    if (!query) return true;
+
+    const haystack = normalizeSearchText([
+      note.title,
+      note.relativePath,
+      note.folder,
+      note.content
+    ].join(" "));
+    return haystack.includes(query);
+  }).sort((a, b) => {
+    const pinnedDifference = Number(pinnedPaths.has(b.id)) - Number(pinnedPaths.has(a.id));
+    if (pinnedDifference) return pinnedDifference;
+    if (a.folder !== b.folder) return a.folder.localeCompare(b.folder, "zh-Hans-CN");
+    return a.title.localeCompare(b.title, "zh-Hans-CN");
+  });
+}
+
+function renderLibraryNoteList() {
+  const notes = filteredLibraryNotes();
+  const pinnedNotes = notes.filter((note) => isLibraryNotePinned(note.id));
+  const regularNotes = notes.filter((note) => !isLibraryNotePinned(note.id));
+  const hasPinnedNotes = pinnedNotes.length > 0;
+  const previousScrollTop = elements.libraryNoteList.scrollTop;
+  elements.libraryListTitle.textContent = hasPinnedNotes ? "已置顶" : "笔记";
+  elements.libraryNoteCount.textContent = String(hasPinnedNotes ? pinnedNotes.length : notes.length);
+  elements.libraryNoteList.innerHTML = "";
+
+  if (!state.library.rootPath) {
+    const empty = document.createElement("div");
+    empty.className = "libraryEmpty";
+    empty.innerHTML = "<strong>选择一个笔记文件夹</strong><span>MarkNote 会把这个文件夹作为资料库，直接读写里面的 Markdown 文件。</span>";
+    elements.libraryNoteList.append(empty);
+    return;
+  }
+
+  if (notes.length === 0) {
+    const empty = document.createElement("div");
+    empty.className = "libraryEmpty";
+    empty.innerHTML = "<strong>没有匹配的笔记</strong><span>可以新建笔记、导入 Markdown，或清空搜索条件。</span>";
+    elements.libraryNoteList.append(empty);
+    return;
+  }
+
+  const appendNoteRow = (note) => {
+    const row = document.createElement("div");
+    const pinned = isLibraryNotePinned(note.id);
+    const menuOpen = state.libraryMenu.noteId === note.id && !elements.libraryContextMenu.hidden;
+    row.className = "libraryNoteRow";
+    if (note.id === state.library.selectedId) row.classList.add("active");
+    if (pinned) row.classList.add("pinned");
+    if (menuOpen) row.classList.add("contextOpen");
+    row.dataset.noteId = note.id;
+
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "libraryNoteItem";
+    button.dataset.noteId = note.id;
+    button.dataset.noteSelect = "true";
+    button.innerHTML = `
+      <strong>${escapeHtml(note.title || note.relativePath)}</strong>
+    `;
+
+    row.append(button);
+
+    const pinButton = document.createElement("button");
+    pinButton.type = "button";
+    pinButton.className = "libraryNotePinButton";
+    pinButton.dataset.notePin = note.id;
+    pinButton.setAttribute("aria-label", `${pinned ? "取消置顶" : "置顶"}：${note.title || note.relativePath}`);
+    pinButton.setAttribute("aria-pressed", String(pinned));
+    pinButton.title = pinned ? "取消置顶" : "置顶";
+    pinButton.innerHTML = `<i data-lucide="${pinned ? "pin-off" : "pin"}" aria-hidden="true"></i>`;
+    row.append(pinButton);
+
+    const moreButton = document.createElement("button");
+    moreButton.type = "button";
+    moreButton.className = "libraryNoteMore";
+    moreButton.dataset.noteMenu = note.id;
+    moreButton.setAttribute("aria-label", `${note.title || note.relativePath}的更多操作`);
+    moreButton.setAttribute("aria-haspopup", "menu");
+    moreButton.setAttribute("aria-expanded", String(menuOpen));
+    moreButton.title = "更多操作";
+    moreButton.innerHTML = '<i data-lucide="ellipsis" aria-hidden="true"></i>';
+    row.append(moreButton);
+
+    elements.libraryNoteList.append(row);
+  };
+
+  pinnedNotes.forEach(appendNoteRow);
+
+  if (hasPinnedNotes && regularNotes.length > 0) {
+    const sectionHeader = document.createElement("div");
+    sectionHeader.className = "librarySectionHeader";
+    sectionHeader.innerHTML = `<span>笔记</span><small>${regularNotes.length}</small>`;
+    elements.libraryNoteList.append(sectionHeader);
+  }
+
+  regularNotes.forEach(appendNoteRow);
+  elements.libraryNoteList.scrollTop = previousScrollTop;
+  renderLucideIcons();
+}
+
+function normalizeSearchText(value) {
+  return String(value || "").trim().toLowerCase();
+}
+
+function renderLucideIcons() {
+  if (!window.lucide?.createIcons || !document.querySelector("i[data-lucide]")) return;
+  window.lucide.createIcons({
+    attrs: {
+      "aria-hidden": "true",
+      focusable: "false"
+    }
+  });
+}
+
+function libraryMenuTargetNote() {
+  return libraryNoteById(state.libraryMenu.noteId);
+}
+
+function renderLibraryContextMenu() {
+  const note = libraryMenuTargetNote();
+  if (!note) {
+    closeLibraryContextMenu();
+    return;
+  }
+
+  elements.libraryArchiveLabel.textContent = isArchivedLibraryNote(note) ? "取消归档" : "归档";
+  renderLucideIcons();
+}
+
+function menuFocusableItems(menu) {
+  return [...menu.querySelectorAll("button:not(:disabled)")].filter((button) => !button.hidden);
+}
+
+function focusMenuItem(menu, direction) {
+  const items = menuFocusableItems(menu);
+  if (!items.length) return;
+  const currentIndex = items.indexOf(document.activeElement);
+  let nextIndex = direction === "first" ? 0 : direction === "last" ? items.length - 1 : currentIndex;
+  if (direction === "next") nextIndex = currentIndex < 0 ? 0 : (currentIndex + 1) % items.length;
+  if (direction === "previous") nextIndex = currentIndex <= 0 ? items.length - 1 : currentIndex - 1;
+  items[nextIndex]?.focus();
+}
+
+function positionFloatingMenu(menu, preferredLeft, preferredTop, anchorRect = null) {
+  const margin = 10;
+  const gap = 7;
+  const rect = { width: menu.offsetWidth, height: menu.offsetHeight };
+  let left = preferredLeft;
+  let top = preferredTop;
+  let horizontalOrigin = "left";
+  let verticalOrigin = "top";
+
+  if (left + rect.width > window.innerWidth - margin) {
+    const flipped = anchorRect ? anchorRect.left - rect.width - gap : preferredLeft - rect.width;
+    left = flipped >= margin ? flipped : window.innerWidth - rect.width - margin;
+    horizontalOrigin = "right";
+  }
+  if (top + rect.height > window.innerHeight - margin) {
+    top = Math.max(margin, window.innerHeight - rect.height - margin);
+    verticalOrigin = "bottom";
+  }
+
+  menu.style.left = `${Math.max(margin, left)}px`;
+  menu.style.top = `${Math.max(margin, top)}px`;
+  menu.style.setProperty("--menu-origin", `${verticalOrigin} ${horizontalOrigin}`);
+}
+
+function positionLibraryContextMenu() {
+  if (elements.libraryContextMenu.hidden) return;
+  const anchorRect = state.libraryMenu.anchorRect;
+  const point = state.libraryMenu.point;
+  const preferredLeft = point?.x ?? ((anchorRect?.right || 0) + 8);
+  const preferredTop = point?.y ?? Math.max(10, (anchorRect?.top || 0) - 6);
+  positionFloatingMenu(elements.libraryContextMenu, preferredLeft, preferredTop, anchorRect);
+}
+
+function openLibraryContextMenu(noteId, options = {}) {
+  const note = libraryNoteById(noteId);
+  if (!note) return;
+
+  closeFileContextMenu();
+  closeEditorContextMenu();
+  closeRecentPanel();
+  closeLibraryContextMenu();
+
+  const anchorRect = options.anchorElement?.getBoundingClientRect?.();
+  state.libraryMenu.noteId = note.id;
+  state.libraryMenu.opener = options.anchorElement || null;
+  state.libraryMenu.anchorRect = anchorRect ? {
+    top: anchorRect.top,
+    right: anchorRect.right,
+    bottom: anchorRect.bottom,
+    left: anchorRect.left
+  } : null;
+  state.libraryMenu.point = options.point || null;
+
+  elements.libraryContextMenu.hidden = false;
+  elements.libraryNoteList.querySelector(`[data-note-id="${CSS.escape(note.id)}"]`)?.classList.add("contextOpen");
+  options.anchorElement?.setAttribute("aria-expanded", "true");
+  renderLibraryContextMenu();
+  window.requestAnimationFrame(() => {
+    positionLibraryContextMenu();
+    if (options.focusMenu) focusMenuItem(elements.libraryContextMenu, "first");
+  });
+}
+
+function closeLibraryContextMenu(options = {}) {
+  const previousNoteId = state.libraryMenu.noteId;
+  const opener = state.libraryMenu.opener;
+  elements.libraryContextMenu.hidden = true;
+  if (previousNoteId) {
+    elements.libraryNoteList.querySelector(`[data-note-id="${CSS.escape(previousNoteId)}"]`)?.classList.remove("contextOpen");
+  }
+  opener?.setAttribute?.("aria-expanded", "false");
+  state.libraryMenu.noteId = "";
+  state.libraryMenu.opener = null;
+  state.libraryMenu.anchorRect = null;
+  state.libraryMenu.point = null;
+  if (options.restoreFocus && opener?.isConnected) opener.focus();
+}
+
+function handleMenuKeyboard(event, menu) {
+  if (event.key === "ArrowDown") {
+    event.preventDefault();
+    focusMenuItem(menu, "next");
+  } else if (event.key === "ArrowUp") {
+    event.preventDefault();
+    focusMenuItem(menu, "previous");
+  } else if (event.key === "Home") {
+    event.preventDefault();
+    focusMenuItem(menu, "first");
+  } else if (event.key === "End") {
+    event.preventDefault();
+    focusMenuItem(menu, "last");
+  } else if (event.key === "Escape") {
+    event.preventDefault();
+    closeLibraryContextMenu({ restoreFocus: true });
+  } else if (event.key === "Tab") {
+    closeLibraryContextMenu();
+  }
+}
+
+function duplicateMarkdownWithTitle(markdown, title) {
+  const lines = String(markdown || "").split(/\r?\n/);
+  const headingIndex = lines.findIndex((line) => /^\s*#{1,6}\s+/.test(line));
+  if (headingIndex >= 0) {
+    lines[headingIndex] = lines[headingIndex].replace(/^(\s*#{1,6}\s+).*/, (_match, prefix) => `${prefix}${title}`);
+    return lines.join("\n");
+  }
+  return `# ${title}\n\n${String(markdown || "")}`.trimEnd() + "\n";
+}
+
+async function duplicateLibraryNote(noteId) {
+  const listedNote = libraryNoteById(noteId);
+  if (!listedNote || !state.library.rootPath) return false;
+  if (!(await confirmIfDirty())) return false;
+
+  const note = await window.marknote?.readLibraryNote?.({
+    rootPath: state.library.rootPath,
+    relativePath: noteId
+  }) || listedNote;
+
+  const extension = libraryPathExtension(note.relativePath);
+  const folderPrefix = note.folder ? `${note.folder}/` : "";
+  const duplicateTitle = `${note.title || libraryPathBaseName(note.relativePath)} 副本`;
+  const preferredPath = `${folderPrefix}${libraryFileNameFromTitle(duplicateTitle)}${extension}`;
+  const relativePath = uniqueClientRelativePath(preferredPath);
+  const duplicated = await window.marknote?.saveLibraryNote?.({
+    rootPath: state.library.rootPath,
+    relativePath,
+    content: duplicateMarkdownWithTitle(note.content, duplicateTitle)
+  });
+  if (!duplicated) {
+    showToast("复制失败");
+    return false;
+  }
+
+  await refreshLibrary({ selectCurrent: false, skipDirtyCheck: true });
+  await selectLibraryNote(duplicated.relativePath || duplicated.id, { skipDirtyCheck: true });
+  showToast("已复制笔记");
+  return true;
+}
+
+function normalizeLibraryFolderPath(value) {
+  return String(value || "")
+    .split(/[\\/]+/)
+    .map((part) => part.trim().replace(/[:*?"<>|]/g, "-").replace(/\s+/g, " "))
+    .filter((part) => part && part !== "." && part !== "..")
+    .join("/");
+}
+
+async function moveLibraryNoteToFolder(noteId, destinationFolder) {
+  const note = libraryNoteById(noteId);
+  if (!note || !state.library.rootPath) return false;
+  const folder = normalizeLibraryFolderPath(destinationFolder);
+  const movingCurrentNote = note.id === state.library.selectedId;
+  if (movingCurrentNote && state.markdown !== state.savedMarkdown && !(await confirmIfDirty())) {
+    return false;
+  }
+
+  const fileName = libraryPathFileName(note.relativePath);
+  const preferredPath = folder ? `${folder}/${fileName}` : fileName;
+  const nextRelativePath = uniqueClientRelativePath(preferredPath, note.id);
+  if (nextRelativePath === note.id) {
+    showToast("笔记已在这个文件夹中");
+    return true;
+  }
+
+  const result = await window.marknote?.renameLibraryNote?.({
+    rootPath: state.library.rootPath,
+    relativePath: note.id,
+    nextRelativePath
+  });
+  if (!result?.ok) {
+    showToast(result?.error === "exists" ? t("renameExists") : "移动失败");
+    return false;
+  }
+
+  const movedId = result.note?.id || result.note?.relativePath || nextRelativePath;
+  remapLibraryMetadataPath(note.id, movedId);
+  if (movingCurrentNote) state.library.selectedId = movedId;
+  await refreshLibrary({ selectCurrent: false, skipDirtyCheck: true });
+
+  if (movingCurrentNote) {
+    const visibleTarget = filteredLibraryNotes().some((item) => item.id === movedId);
+    const nextSelection = visibleTarget ? movedId : state.library.selectedId;
+    if (nextSelection) {
+      await selectLibraryNote(nextSelection, { skipDirtyCheck: true, quiet: true });
+    } else {
+      resetEditorForEmptyLibrary();
+      saveLibrarySettings();
+      render();
+    }
+  } else {
+    render();
+  }
+
+  showToast(folder === libraryArchiveFolder ? "已归档" : "笔记已移动");
+  return true;
+}
+
+async function toggleLibraryArchive(noteId) {
+  const note = libraryNoteById(noteId);
+  if (!note) return false;
+  const restoring = isArchivedLibraryNote(note);
+  const moved = await moveLibraryNoteToFolder(noteId, restoring ? "" : libraryArchiveFolder);
+  if (moved && restoring) showToast("已取消归档");
+  return moved;
+}
+
+function toggleLibraryPin(noteId) {
+  const pinned = !isLibraryNotePinned(noteId);
+  setLibraryNotePinned(noteId, pinned);
+  renderLibrary();
+  showToast(pinned ? "已置顶" : "已取消置顶");
+}
+
+async function showLibraryNoteInFolder(noteId) {
+  const note = libraryNoteById(noteId);
+  if (!note?.filePath || !window.marknote?.showInFolder) {
+    showToast(t("showUnavailable"));
+    return false;
+  }
+  await window.marknote.showInFolder(note.filePath);
+  return true;
+}
+
+async function exportLibraryNotePdf(noteId) {
+  const note = libraryNoteById(noteId);
+  if (!note || !window.marknote?.exportPdf) {
+    showToast(t("exportPdfUnavailable"));
+    return false;
+  }
+  if (note.id === state.library.selectedId) return exportPdf();
+
+  const html = sanitizeMarkdownHtml(markdownToHtmlWithMath(note.content || ""));
+  const result = await window.marknote.exportPdf({
+    html,
+    fileName: note.relativePath,
+    theme: state.preferences.theme
+  });
+  if (!result) return false;
+  showToast(t("exportSuccess"));
+  return true;
+}
+
+async function deleteLibraryNote(noteId) {
+  const note = libraryNoteById(noteId);
+  if (!note || !window.marknote?.deleteLibraryNote) {
+    showToast(t("deleteUnavailable"));
+    return false;
+  }
+  const deletingCurrentNote = note.id === state.library.selectedId;
+  if (deletingCurrentNote && state.markdown !== state.savedMarkdown && !(await confirmIfDirty())) {
+    return false;
+  }
+
+  const payload = {
+    title: t("deleteTitle"),
+    message: `要把“${note.title || libraryPathFileName(note.relativePath)}”移到废纸篓吗？`,
+    detail: t("deleteDetail"),
+    buttons: [t("deleteConfirm"), t("cancel")]
+  };
+  const choice = window.marknote?.confirmDeleteFile
+    ? await window.marknote.confirmDeleteFile(payload)
+    : window.confirm(`${payload.message}\n\n${payload.detail}`) ? "delete" : "cancel";
+  if (choice !== "delete") return false;
+
+  const result = await window.marknote.deleteLibraryNote({
+    rootPath: state.library.rootPath,
+    relativePath: note.id
+  });
+  if (!result?.ok) return false;
+
+  setLibraryNotePinned(note.id, false);
+  forgetRecentLibraryNote(note.id);
+  state.library.notes = state.library.notes.filter((item) => item.id !== note.id);
+  if (deletingCurrentNote) {
+    state.library.selectedId = filteredLibraryNotes()[0]?.id || "";
+    resetEditorForEmptyLibrary();
+    if (state.library.selectedId) {
+      await selectLibraryNote(state.library.selectedId, { skipDirtyCheck: true, quiet: true });
+    } else {
+      saveLibrarySettings();
+      render();
+    }
+  } else {
+    render();
+  }
+  showToast(t("deleteSuccess"));
+  return true;
+}
+
+async function handleLibraryMenuAction(action) {
+  const noteId = state.libraryMenu.noteId;
+  if (!noteId) return;
+
+  closeLibraryContextMenu();
+  if (action === "rename") openRenameDialog(noteId);
+  else if (action === "duplicate") await duplicateLibraryNote(noteId);
+  else if (action === "show-in-folder") await showLibraryNoteInFolder(noteId);
+  else if (action === "export-pdf") await exportLibraryNotePdf(noteId);
+  else if (action === "archive") await toggleLibraryArchive(noteId);
+  else if (action === "delete") await deleteLibraryNote(noteId);
+}
+
+function openRenameDialog(noteId = "") {
+  closeFileContextMenu();
+  closeLibraryContextMenu();
+
+  const targetNote = noteId ? libraryNoteById(noteId) : null;
+  state.renameTargetId = targetNote?.id || "";
+
+  if ((noteId && !targetNote) || (!targetNote && !state.filePath) || state.isHelpOpen) {
     showToast(t("renameUnavailable"));
     return;
   }
 
-  elements.renameInput.value = state.fileName;
+  elements.renameInput.value = targetNote?.relativePath ? libraryPathFileName(targetNote.relativePath) : state.fileName;
   elements.renameDialog.hidden = false;
   window.setTimeout(() => {
     elements.renameInput.focus();
-    const extensionStart = state.fileName.lastIndexOf(".");
-    elements.renameInput.setSelectionRange(0, extensionStart > 0 ? extensionStart : state.fileName.length);
+    const inputValue = elements.renameInput.value;
+    const extensionStart = inputValue.lastIndexOf(".");
+    elements.renameInput.setSelectionRange(0, extensionStart > 0 ? extensionStart : inputValue.length);
   }, 0);
 }
 
 function closeRenameDialog() {
   elements.renameDialog.hidden = true;
+  state.renameTargetId = "";
 }
 
 async function renameCurrentFile(newName) {
@@ -3329,8 +4218,54 @@ async function renameCurrentFile(newName) {
     return;
   }
 
-  if (!state.filePath || state.isHelpOpen) {
+  if (state.isHelpOpen || (!isLibraryMode() && !state.filePath)) {
     showToast(t("renameUnavailable"));
+    return;
+  }
+
+  if (isLibraryMode()) {
+    const targetId = state.renameTargetId || state.library.selectedId;
+    const targetNote = libraryNoteById(targetId);
+    if (!targetNote) {
+      showToast("请先选择一篇资料库笔记");
+      return;
+    }
+    const renamingCurrentNote = targetId === state.library.selectedId;
+    if (renamingCurrentNote && state.markdown !== state.savedMarkdown && !(await confirmIfDirty())) {
+      return;
+    }
+
+    const folder = targetNote.folder ? `${targetNote.folder}/` : "";
+    const requestedName = libraryPathFileName(trimmedName);
+    if (!requestedName) {
+      showToast(t("renameInvalid"));
+      return;
+    }
+    const extension = libraryPathExtension(targetNote.relativePath);
+    const nextFileName = /\.(md|markdown)$/i.test(requestedName) ? requestedName : `${requestedName}${extension}`;
+    const nextRelativePath = `${folder}${nextFileName}`;
+    const result = await window.marknote?.renameLibraryNote?.({
+      rootPath: state.library.rootPath,
+      relativePath: targetId,
+      nextRelativePath
+    });
+    if (!result?.ok) {
+      showToast(result?.error === "exists" ? t("renameExists") : t("renameInvalid"));
+      return;
+    }
+
+    const note = result.note;
+    const renamedId = note.id || note.relativePath;
+    remapLibraryMetadataPath(targetId, renamedId);
+    if (renamingCurrentNote) state.library.selectedId = renamedId;
+    closeRenameDialog();
+    await refreshLibrary({ selectCurrent: false, skipDirtyCheck: true });
+    if (renamingCurrentNote) {
+      await selectLibraryNote(renamedId, { skipDirtyCheck: true, quiet: true });
+    } else {
+      render();
+    }
+    showToast(t("renameSuccess"));
     return;
   }
 
@@ -3373,6 +4308,17 @@ async function renameCurrentFile(newName) {
 
 async function switchToRecentFile(file) {
   if (!file?.filePath) return;
+
+  if (state.library.rootPath) {
+    const libraryNote = state.library.notes.find((note) => note.filePath === file.filePath);
+    closeRecentPanel();
+    if (libraryNote) {
+      await selectLibraryNote(libraryNote.id);
+    } else {
+      showToast(t("importFromLibraryAction"));
+    }
+    return;
+  }
 
   if (state.isHelpOpen) {
     closeHelp();
@@ -3519,14 +4465,42 @@ function applyLanguage() {
   elements.themeSelect.value = state.preferences.theme;
 }
 
+function applyPaneWidths() {
+  const libraryWidth = normalizePaneWidth(state.preferences.libraryPaneWidth, "library");
+  const outlineWidth = normalizePaneWidth(state.preferences.outlinePaneWidth, "outline");
+  state.preferences.libraryPaneWidth = libraryWidth;
+  state.preferences.outlinePaneWidth = outlineWidth;
+
+  elements.workspace.style.setProperty("--library-pane-expanded-width", `${libraryWidth}px`);
+  elements.workspace.style.setProperty("--outline-pane-expanded-width", `${outlineWidth}px`);
+  updatePaneResizeHandle(elements.libraryResizeHandle, "library", libraryWidth);
+  updatePaneResizeHandle(elements.outlineResizeHandle, "outline", outlineWidth);
+}
+
+function updatePaneResizeHandle(handle, pane, width) {
+  if (!handle) return;
+  const limits = paneWidthLimits[pane];
+  handle.setAttribute("aria-valuemin", String(limits.min));
+  handle.setAttribute("aria-valuemax", String(limits.max));
+  handle.setAttribute("aria-valuenow", String(width));
+}
+
 function applyPreferences() {
   document.documentElement.dataset.theme = state.preferences.theme;
+  applyPaneWidths();
   elements.workspace.classList.toggle("wysiwygMode", state.preferences.viewMode === "wysiwyg");
   elements.workspace.classList.toggle("previewHidden", state.preferences.viewMode === "edit" || state.preferences.viewMode === "wysiwyg");
   elements.workspace.classList.toggle("readingMode", state.preferences.viewMode === "reading");
   elements.workspace.classList.toggle("aiMode", state.aiOpen);
+  elements.workspace.classList.toggle("aiModeClosing", state.aiClosing);
+  elements.workspace.classList.toggle("libraryCollapsed", state.preferences.libraryCollapsed);
+  elements.workspace.classList.toggle("outlineCollapsed", state.preferences.outlineCollapsed);
+  elements.libraryPane?.classList.toggle("collapsed", state.preferences.libraryCollapsed);
+  elements.outlinePane?.classList.toggle("collapsed", state.preferences.outlineCollapsed);
+  updatePaneToggleButton(elements.toggleLibraryPaneButton, state.preferences.libraryCollapsed, "收起资料库", "展开资料库");
+  updatePaneToggleButton(elements.toggleOutlinePaneButton, state.preferences.outlineCollapsed, "收起目录", "展开目录");
   elements.viewModeToggle.classList.toggle("active", state.preferences.viewMode !== "edit");
-  elements.viewModeToggle.disabled = state.aiOpen;
+  elements.viewModeToggle.disabled = state.aiOpen || state.aiClosing;
   renderViewModeIcon(state.preferences.viewMode);
   elements.themeToggle.classList.toggle("active", state.preferences.theme !== "light");
   elements.editor.classList.toggle("wrap", state.preferences.wordWrap);
@@ -3550,11 +4524,11 @@ function renderSettingsPage() {
   elements.aiSettingsPage.hidden = page !== "ai";
   elements.settingsBackButton.hidden = page === "main";
   elements.settingsTitle.textContent = page === "cloud"
-    ? "局域网同步"
+    ? "同步"
     : page === "ai"
       ? t("aiSettings")
       : t("settings");
-  elements.cloudSettingsSummary.textContent = state.cloudSession ? "已开启" : "未开启";
+  elements.cloudSettingsSummary.textContent = "后续支持";
   elements.aiSettingsSummary.textContent = currentAiProvider();
 }
 
@@ -3577,10 +4551,12 @@ function render() {
   renderPreview();
   renderOutline();
   renderRecentFiles();
+  renderLibrary();
   renderFileContextMenu();
   updateStatus();
   applyPreferences();
   renderAiPanel();
+  renderLucideIcons();
 }
 
 function setPreference(key, value) {
@@ -3590,6 +4566,99 @@ function setPreference(key, value) {
   if (key === "wordWrap") {
     playWrapAnimation();
   }
+}
+
+function toggleSidebarPane(pane) {
+  const key = pane === "library" ? "libraryCollapsed" : "outlineCollapsed";
+  setPreference(key, !state.preferences[key]);
+}
+
+function paneWidthKey(pane) {
+  return pane === "library" ? "libraryPaneWidth" : "outlinePaneWidth";
+}
+
+function paneCollapsedKey(pane) {
+  return pane === "library" ? "libraryCollapsed" : "outlineCollapsed";
+}
+
+function paneResizeHandle(pane) {
+  return pane === "library" ? elements.libraryResizeHandle : elements.outlineResizeHandle;
+}
+
+function activePaneWidth(pane) {
+  if (state.preferences[paneCollapsedKey(pane)]) return 48;
+  return normalizePaneWidth(state.preferences[paneWidthKey(pane)], pane);
+}
+
+function maxResizablePaneWidth(pane) {
+  const limits = paneWidthLimits[pane];
+  const workspaceWidth = elements.workspace.getBoundingClientRect().width || window.innerWidth;
+  const otherPane = pane === "library" ? "outline" : "library";
+  const otherWidth = activePaneWidth(otherPane);
+  const editorMinimum = 320;
+  const dynamicMax = workspaceWidth - otherWidth - editorMinimum;
+  return Math.max(limits.min, Math.min(limits.max, dynamicMax || limits.max));
+}
+
+function setPaneWidth(pane, width, options = {}) {
+  const key = paneWidthKey(pane);
+  const nextWidth = clamp(Math.round(width), paneWidthLimits[pane].min, maxResizablePaneWidth(pane));
+  state.preferences[key] = nextWidth;
+  applyPaneWidths();
+  if (options.persist) savePreferences();
+}
+
+function startPaneResize(event, pane) {
+  if (event.button !== 0) return;
+  if (state.preferences[paneCollapsedKey(pane)]) return;
+
+  event.preventDefault();
+  state.paneResize = {
+    pane,
+    startX: event.clientX,
+    startWidth: activePaneWidth(pane),
+    handle: paneResizeHandle(pane)
+  };
+  state.paneResize.handle?.classList.add("active");
+  document.documentElement.classList.add("paneResizing");
+  window.addEventListener("pointermove", handlePaneResizeMove);
+  window.addEventListener("pointerup", finishPaneResize);
+  window.addEventListener("pointercancel", finishPaneResize);
+}
+
+function handlePaneResizeMove(event) {
+  if (!state.paneResize) return;
+  const delta = event.clientX - state.paneResize.startX;
+  setPaneWidth(state.paneResize.pane, state.paneResize.startWidth + delta);
+}
+
+function finishPaneResize() {
+  if (!state.paneResize) return;
+  state.paneResize.handle?.classList.remove("active");
+  state.paneResize = null;
+  document.documentElement.classList.remove("paneResizing");
+  window.removeEventListener("pointermove", handlePaneResizeMove);
+  window.removeEventListener("pointerup", finishPaneResize);
+  window.removeEventListener("pointercancel", finishPaneResize);
+  savePreferences();
+}
+
+function adjustPaneWidthWithKeyboard(event, pane) {
+  const direction = event.key === "ArrowLeft" ? -1 : event.key === "ArrowRight" ? 1 : 0;
+  if (!direction || state.preferences[paneCollapsedKey(pane)]) return;
+
+  event.preventDefault();
+  const step = event.shiftKey ? 32 : 12;
+  setPaneWidth(pane, activePaneWidth(pane) + direction * step, { persist: true });
+}
+
+function updatePaneToggleButton(button, collapsed, expandedLabel, collapsedLabel) {
+  if (!button) return;
+
+  const label = collapsed ? collapsedLabel : expandedLabel;
+  button.setAttribute("aria-expanded", String(!collapsed));
+  button.setAttribute("aria-label", label);
+  button.title = label;
 }
 
 function setLanguage(language) {
@@ -3655,7 +4724,7 @@ async function setViewMode(mode) {
 }
 
 function cycleViewMode() {
-  if (state.aiOpen) {
+  if (state.aiOpen || state.aiClosing) {
     setViewMode("wysiwyg");
     return;
   }
@@ -3721,6 +4790,10 @@ async function confirmIfDirty() {
 }
 
 async function openFile() {
+  return chooseLibrary();
+}
+
+async function openStandaloneFile() {
   if (state.isHelpOpen) {
     closeHelp();
   }
@@ -3750,6 +4823,10 @@ async function openFile() {
 
 async function saveFile() {
   if (state.isHelpOpen) return false;
+
+  if (isLibraryMode()) {
+    return saveLibraryNote();
+  }
 
   if (window.marknote?.saveFile) {
     state.saveStatus = "saving";
@@ -3856,6 +4933,11 @@ async function showCurrentFileInFolder() {
 
 async function deleteCurrentFile() {
   closeFileContextMenu();
+
+  if (isLibraryMode()) {
+    return deleteLibraryNote(state.library.selectedId);
+  }
+
   if (!state.filePath || !window.marknote?.deleteFile) {
     showToast(t("deleteUnavailable"));
     return false;
@@ -3894,6 +4976,9 @@ async function deleteCurrentFile() {
 async function newNote() {
   if (state.isHelpOpen) {
     closeHelp();
+  }
+  if (state.library.rootPath) {
+    return createLibraryNote();
   }
   if (!(await confirmIfDirty())) return;
 
@@ -4032,15 +5117,6 @@ function playWrapAnimation() {
   elements.editor.classList.add("wrapPulse");
 }
 
-function playAiLayoutAnimation(enabled) {
-  elements.workspace.classList.remove("aiModeIn", "aiModeOut");
-  void elements.workspace.offsetWidth;
-  elements.workspace.classList.add(enabled ? "aiModeIn" : "aiModeOut");
-  window.setTimeout(() => {
-    elements.workspace.classList.remove("aiModeIn", "aiModeOut");
-  }, 260);
-}
-
 function showToast(message) {
   window.clearTimeout(state.toastTimer);
   elements.toast.textContent = message;
@@ -4081,6 +5157,9 @@ function shortcutMatches(event, key) {
 function bindShortcuts() {
   window.addEventListener("keydown", (event) => {
     if (event.key === "Escape") {
+      if (!elements.libraryContextMenu.hidden) {
+        closeLibraryContextMenu({ restoreFocus: true });
+      }
       if (state.recentOpen) {
         closeRecentPanel();
       }
@@ -4312,10 +5391,83 @@ function bindEvents() {
       scheduleDraftSave();
     }
   });
-  elements.cloudSignInButton.addEventListener("click", signInCloudWithPassword);
-  elements.cloudSignUpButton.addEventListener("click", signUpCloudWithPassword);
-  elements.cloudLocalOnlyButton.addEventListener("click", useLocalOnlyCloudMode);
-  elements.cloudUploadButton.addEventListener("click", uploadCurrentNoteToCloud);
+  elements.cloudUploadButton?.addEventListener("click", uploadCurrentNoteToCloud);
+  elements.toggleLibraryPaneButton.addEventListener("click", () => toggleSidebarPane("library"));
+  elements.toggleOutlinePaneButton.addEventListener("click", () => toggleSidebarPane("outline"));
+  elements.libraryResizeHandle.addEventListener("pointerdown", (event) => {
+    closeLibraryContextMenu();
+    startPaneResize(event, "library");
+  });
+  elements.outlineResizeHandle.addEventListener("pointerdown", (event) => {
+    closeLibraryContextMenu();
+    startPaneResize(event, "outline");
+  });
+  elements.libraryResizeHandle.addEventListener("keydown", (event) => adjustPaneWidthWithKeyboard(event, "library"));
+  elements.outlineResizeHandle.addEventListener("keydown", (event) => adjustPaneWidthWithKeyboard(event, "outline"));
+  elements.chooseLibraryButton.addEventListener("click", chooseLibrary);
+  elements.importLibraryButton.addEventListener("click", () => importFilesToLibrary());
+  elements.refreshLibraryButton.addEventListener("click", () => refreshLibrary().then(() => showToast("资料库已刷新")));
+  elements.librarySearchInput.addEventListener("input", (event) => {
+    state.library.searchQuery = event.target.value;
+    renderLibrary();
+  });
+  elements.folderList.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-folder]");
+    if (!button) return;
+    closeLibraryContextMenu();
+    state.library.selectedFolder = button.dataset.folder || "";
+    renderLibrary();
+  });
+  elements.libraryNoteList.addEventListener("click", (event) => {
+    const pinButton = event.target.closest("[data-note-pin]");
+    if (pinButton) {
+      event.stopPropagation();
+      closeLibraryContextMenu();
+      toggleLibraryPin(pinButton.dataset.notePin);
+      return;
+    }
+
+    const menuButton = event.target.closest("[data-note-menu]");
+    if (menuButton) {
+      event.stopPropagation();
+      const menuIsOpenForNote = state.libraryMenu.noteId === menuButton.dataset.noteMenu
+        && !elements.libraryContextMenu.hidden;
+      if (menuIsOpenForNote) {
+        closeLibraryContextMenu({ restoreFocus: true });
+        return;
+      }
+      openLibraryContextMenu(menuButton.dataset.noteMenu, {
+        anchorElement: menuButton,
+        focusMenu: true
+      });
+      return;
+    }
+
+    const button = event.target.closest("[data-note-select]");
+    if (!button) return;
+    closeLibraryContextMenu();
+    selectLibraryNote(button.dataset.noteId);
+  });
+  elements.libraryNoteList.addEventListener("contextmenu", (event) => {
+    const row = event.target.closest(".libraryNoteRow[data-note-id]");
+    if (!row) return;
+    event.preventDefault();
+    event.stopPropagation();
+    openLibraryContextMenu(row.dataset.noteId, {
+      anchorElement: row.querySelector("[data-note-menu]"),
+      point: { x: event.clientX, y: event.clientY },
+      focusMenu: true
+    });
+  });
+  elements.libraryNoteList.addEventListener("scroll", () => closeLibraryContextMenu(), { passive: true });
+  elements.libraryContextMenu.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-library-action]");
+    if (!button || button.disabled) return;
+    handleLibraryMenuAction(button.dataset.libraryAction);
+  });
+  elements.libraryContextMenu.addEventListener("keydown", (event) => {
+    handleMenuKeyboard(event, elements.libraryContextMenu);
+  });
   elements.aiProviderSelect.addEventListener("change", (event) => {
     setAiProvider(event.target.value);
   });
@@ -4361,12 +5513,35 @@ function bindEvents() {
     ) {
       closeEditorContextMenu();
     }
+
+    if (
+      !elements.libraryContextMenu.hidden &&
+      !elements.libraryContextMenu.contains(event.target) &&
+      !event.target.closest("[data-note-menu]")
+    ) {
+      closeLibraryContextMenu();
+    }
   });
+
+  window.addEventListener("resize", () => closeLibraryContextMenu());
 
   elements.browserFileInput.addEventListener("change", async (event) => {
     const file = event.target.files?.[0];
     if (!file) return;
     const content = await file.text();
+    if (state.library.rootPath) {
+      const note = await window.marknote?.saveLibraryNote?.({
+        rootPath: state.library.rootPath,
+        relativePath: uniqueClientRelativePath(file.name),
+        content
+      });
+      await refreshLibrary({ selectCurrent: false });
+      if (note?.relativePath) {
+        await selectLibraryNote(note.relativePath, { skipDirtyCheck: true });
+      }
+      event.target.value = "";
+      return;
+    }
     state.markdown = content;
     state.savedMarkdown = content;
     state.filePath = "";
@@ -4397,6 +5572,9 @@ async function boot() {
   elements.editor.value = state.markdown;
   bindEvents();
   render();
+  if (state.library.rootPath) {
+    await refreshLibrary({ selectCurrent: true, skipDirtyCheck: true, preserveDraft: true });
+  }
   await initCloudSession();
   await initWysiwygEditor();
   await restoreDraftIfNeeded();

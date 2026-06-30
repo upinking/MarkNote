@@ -300,6 +300,32 @@ svg {
   padding: 8px 2px 16px;
 }
 
+.mobileSearch {
+  display: grid;
+  gap: 7px;
+  margin: 0 0 14px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.mobileSearch input {
+  width: 100%;
+  min-height: 42px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0 12px;
+  background: var(--surface);
+  color: var(--text);
+  font-size: 15px;
+  font-weight: 620;
+  letter-spacing: 0;
+  outline: none;
+  text-transform: none;
+}
+
 .noteList {
   display: grid;
   gap: 10px;

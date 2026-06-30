@@ -1,13 +1,8 @@
 const { app, BrowserWindow, dialog, ipcMain, shell } = require("electron");
-const crypto = require("node:crypto");
-const http = require("node:http");
-const os = require("node:os");
 const path = require("node:path");
 const fs = require("node:fs/promises");
 
 let isQuitting = false;
-let lanSyncServer = null;
-let lanSyncState = null;
 const appIconPath = path.join(__dirname, "../build/icon.png");
 
 function createWindow() {
@@ -39,10 +34,6 @@ function createWindow() {
 }
 
 app.whenReady().then(() => {
-  if (process.platform === "darwin" && app.dock) {
-    app.dock.setIcon(appIconPath);
-  }
-
   createWindow();
 
   app.on("activate", () => {
@@ -60,222 +51,259 @@ app.on("window-all-closed", () => {
 
 app.on("before-quit", () => {
   isQuitting = true;
-  stopLanSyncServer();
 });
 
-ipcMain.handle("lan-sync:start", async (_event, payload) => {
-  stopLanSyncServer();
-
-  const code = String(crypto.randomInt(100000, 1000000));
-  const notes = normalizeLanNotes(payload?.notes);
-  const server = http.createServer((request, response) => {
-    handleLanSyncRequest(request, response, code);
+ipcMain.handle("library:choose", async () => {
+  const result = await dialog.showOpenDialog({
+    title: "Choose MarkNote library folder",
+    properties: ["openDirectory", "createDirectory"]
   });
 
-  await new Promise((resolve, reject) => {
-    server.once("error", reject);
-    server.listen(0, "0.0.0.0", () => {
-      server.off("error", reject);
-      resolve();
-    });
-  });
+  if (result.canceled || result.filePaths.length === 0) {
+    return null;
+  }
 
-  const { port } = server.address();
-  lanSyncServer = server;
-  lanSyncState = {
-    code,
-    port,
-    notes,
-    urls: lanSyncUrls(port)
-  };
-
-  return lanSyncPublicState();
-});
-
-ipcMain.handle("lan-sync:update", async (_event, payload) => {
-  if (!lanSyncState) return null;
-  lanSyncState.notes = normalizeLanNotes(payload?.notes);
-  return lanSyncPublicState();
-});
-
-ipcMain.handle("lan-sync:stop", async () => {
-  stopLanSyncServer();
-  return { running: false };
-});
-
-ipcMain.handle("lan-sync:status", async () => lanSyncPublicState());
-
-function normalizeLanNotes(notes = []) {
-  return (Array.isArray(notes) ? notes : []).map((note, index) => {
-    const now = new Date().toISOString();
-    const title = String(note?.title || note?.fileName || `MarkNote-${index + 1}`).slice(0, 120);
-    return {
-      id: String(note?.id || `note-${index + 1}`),
-      title,
-      content: String(note?.content || ""),
-      fileName: sanitizeFileName(note?.fileName || `${title || "MarkNote"}.md`),
-      filePath: String(note?.filePath || ""),
-      created_at: note?.created_at || now,
-      updated_at: note?.updated_at || now,
-      deleted_at: null
-    };
-  });
-}
-
-function lanSyncPublicState() {
-  if (!lanSyncState) return { running: false, urls: [], code: "" };
+  const rootPath = result.filePaths[0];
   return {
-    running: true,
-    urls: lanSyncState.urls,
-    code: lanSyncState.code,
-    noteCount: lanSyncState.notes.length
+    rootPath,
+    notes: await scanLibraryNotes(rootPath)
   };
-}
+});
 
-function lanSyncUrls(port) {
-  const urls = [];
-  const networks = os.networkInterfaces();
-  Object.values(networks).flat().forEach((network) => {
-    if (!network || network.family !== "IPv4" || network.internal) return;
-    urls.push(`http://${network.address}:${port}`);
-  });
-  return urls.length ? urls : [`http://127.0.0.1:${port}`];
-}
+ipcMain.handle("library:scan", async (_event, payload) => {
+  const rootPath = payload?.rootPath;
+  if (!rootPath) return { ok: false, error: "missing-root", notes: [] };
 
-function stopLanSyncServer() {
-  if (lanSyncServer) {
-    lanSyncServer.close();
-  }
-  lanSyncServer = null;
-  lanSyncState = null;
-}
+  return {
+    ok: true,
+    rootPath,
+    notes: await scanLibraryNotes(rootPath)
+  };
+});
 
-async function handleLanSyncRequest(request, response, code) {
-  setCorsHeaders(response);
-  if (request.method === "OPTIONS") {
-    response.writeHead(204);
-    response.end();
-    return;
-  }
+ipcMain.handle("library:read", async (_event, payload) => {
+  const rootPath = payload?.rootPath;
+  const relativePath = payload?.relativePath;
+  const filePath = resolveLibraryPath(rootPath, relativePath);
+  const content = await fs.readFile(filePath, "utf8");
+  const stat = await fs.stat(filePath);
 
-  const url = new URL(request.url || "/", `http://${request.headers.host || "localhost"}`);
-  if (url.pathname === "/") {
-    sendJson(response, 200, { ok: true, app: "MarkNote", message: "MarkNote LAN sync is running" });
-    return;
-  }
+  return libraryNoteFromContent(rootPath, relativePath, content, stat);
+});
 
-  const requestCode = url.searchParams.get("code") || request.headers["x-marknote-sync-code"];
-  if (requestCode !== code) {
-    sendJson(response, 403, { ok: false, error: "同步码不正确" });
-    return;
-  }
+ipcMain.handle("library:save", async (_event, payload) => {
+  const rootPath = payload?.rootPath;
+  const relativePath = normalizeLibraryRelativePath(payload?.relativePath || "Untitled.md");
+  const content = payload?.content ?? "";
+  const filePath = resolveLibraryPath(rootPath, relativePath);
 
-  if (request.method === "GET" && url.pathname === "/notes") {
-    sendJson(response, 200, {
-      ok: true,
-      notes: lanSyncState.notes.map(publicLanNote)
-    });
-    return;
+  await fs.mkdir(path.dirname(filePath), { recursive: true });
+  await fs.writeFile(filePath, content, "utf8");
+
+  const stat = await fs.stat(filePath);
+  return libraryNoteFromContent(rootPath, relativePath, content, stat);
+});
+
+ipcMain.handle("library:rename", async (_event, payload) => {
+  const rootPath = payload?.rootPath;
+  const relativePath = payload?.relativePath;
+  const nextRelativePath = normalizeLibraryRelativePath(payload?.nextRelativePath || payload?.newName || "");
+
+  if (!relativePath || !nextRelativePath) {
+    return { ok: false, error: "invalid" };
   }
 
-  const noteMatch = url.pathname.match(/^\/notes\/([^/]+)$/);
-  if (request.method === "POST" && noteMatch) {
-    await receiveLanNote(request, response, decodeURIComponent(noteMatch[1]));
-    return;
+  const filePath = resolveLibraryPath(rootPath, relativePath);
+  const nextPath = resolveLibraryPath(rootPath, nextRelativePath);
+  if (filePath === nextPath) {
+    const content = await fs.readFile(filePath, "utf8");
+    const stat = await fs.stat(filePath);
+    return { ok: true, note: libraryNoteFromContent(rootPath, nextRelativePath, content, stat) };
   }
 
-  sendJson(response, 404, { ok: false, error: "未找到同步接口" });
-}
-
-async function receiveLanNote(request, response, noteId) {
   try {
-    const body = await readJsonBody(request);
-    const note = lanSyncState.notes.find((item) => item.id === noteId) || {
-      id: noteId,
-      title: "",
-      fileName: "",
-      filePath: "",
-      created_at: new Date().toISOString()
-    };
-    const updatedNote = {
-      ...note,
-      title: String(body?.title || note.title || "未命名笔记").slice(0, 120),
-      content: String(body?.content || ""),
-      fileName: sanitizeFileName(body?.fileName || note.fileName || `${body?.title || note.title || "未命名笔记"}.md`),
-      updated_at: body?.updated_at || new Date().toISOString(),
-      deleted_at: null
-    };
-
-    if (!updatedNote.filePath) {
-      const inboxDir = path.join(app.getPath("documents"), "MarkNote Sync");
-      await fs.mkdir(inboxDir, { recursive: true });
-      updatedNote.filePath = path.join(inboxDir, updatedNote.fileName);
-    }
-
-    await fs.writeFile(updatedNote.filePath, updatedNote.content, "utf8");
-    lanSyncState.notes = [
-      updatedNote,
-      ...lanSyncState.notes.filter((item) => item.id !== updatedNote.id)
-    ];
-
-    BrowserWindow.getAllWindows().forEach((win) => {
-      win.webContents.send("lan-sync:note-updated", publicLanNote(updatedNote));
-    });
-
-    sendJson(response, 200, { ok: true, note: publicLanNote(updatedNote) });
-  } catch (error) {
-    sendJson(response, 400, { ok: false, error: error?.message || "无法保存手机回传的笔记" });
+    await fs.access(nextPath);
+    return { ok: false, error: "exists" };
+  } catch {
+    await fs.mkdir(path.dirname(nextPath), { recursive: true });
+    await fs.rename(filePath, nextPath);
+    const content = await fs.readFile(nextPath, "utf8");
+    const stat = await fs.stat(nextPath);
+    return { ok: true, note: libraryNoteFromContent(rootPath, nextRelativePath, content, stat) };
   }
+});
+
+ipcMain.handle("library:delete", async (_event, payload) => {
+  const filePath = resolveLibraryPath(payload?.rootPath, payload?.relativePath);
+  await shell.trashItem(filePath);
+  return { ok: true };
+});
+
+ipcMain.handle("library:import-files", async (_event, payload) => {
+  const rootPath = payload?.rootPath;
+  if (!rootPath) return { ok: false, error: "missing-root", notes: [] };
+
+  let filePaths = Array.isArray(payload?.filePaths) ? payload.filePaths.filter(Boolean) : [];
+  if (filePaths.length === 0) {
+    const result = await dialog.showOpenDialog({
+      title: "Import Markdown files",
+      filters: [{ name: "Markdown", extensions: ["md", "markdown"] }],
+      properties: ["openFile", "multiSelections"]
+    });
+    if (result.canceled || result.filePaths.length === 0) {
+      return { ok: true, imported: 0, notes: await scanLibraryNotes(rootPath) };
+    }
+    filePaths = result.filePaths;
+  }
+
+  let imported = 0;
+  for (const sourcePath of filePaths) {
+    if (!isMarkdownFile(sourcePath)) continue;
+    const fileName = sanitizeLibraryFileName(path.basename(sourcePath));
+    const targetRelativePath = await uniqueLibraryRelativePath(rootPath, fileName);
+    const targetPath = resolveLibraryPath(rootPath, targetRelativePath);
+    await fs.mkdir(path.dirname(targetPath), { recursive: true });
+    await fs.copyFile(sourcePath, targetPath);
+    imported += 1;
+  }
+
+  return {
+    ok: true,
+    imported,
+    notes: await scanLibraryNotes(rootPath)
+  };
+});
+
+async function scanLibraryNotes(rootPath) {
+  if (!String(rootPath || "").trim()) {
+    throw new Error("Missing library root");
+  }
+
+  const root = path.resolve(String(rootPath));
+  const entries = [];
+
+  async function walk(directory) {
+    const children = await fs.readdir(directory, { withFileTypes: true });
+    for (const child of children) {
+      if (child.name.startsWith(".") || child.name === "node_modules") continue;
+
+      const childPath = path.join(directory, child.name);
+      if (child.isDirectory()) {
+        await walk(childPath);
+        continue;
+      }
+
+      if (!child.isFile() || !isMarkdownFile(child.name)) continue;
+
+      const relativePath = toPosixPath(path.relative(root, childPath));
+      const content = await fs.readFile(childPath, "utf8").catch(() => "");
+      const stat = await fs.stat(childPath);
+      entries.push(libraryNoteFromContent(root, relativePath, content, stat));
+    }
+  }
+
+  await walk(root);
+  return entries.sort((a, b) => {
+    if (a.folder !== b.folder) return a.folder.localeCompare(b.folder, "zh-Hans-CN");
+    return a.title.localeCompare(b.title, "zh-Hans-CN");
+  });
 }
 
-function publicLanNote(note) {
+function libraryNoteFromContent(rootPath, relativePath, content, stat) {
+  const normalized = normalizeLibraryRelativePath(relativePath);
   return {
-    id: note.id,
-    title: note.title,
-    content: note.content,
-    fileName: note.fileName,
-    created_at: note.created_at,
-    updated_at: note.updated_at,
-    deleted_at: note.deleted_at || null
+    id: normalized,
+    title: titleFromMarkdown(content) || path.basename(normalized, path.extname(normalized)),
+    content,
+    relativePath: normalized,
+    folder: folderFromRelativePath(normalized),
+    updatedAt: stat?.mtime ? stat.mtime.toISOString() : new Date().toISOString(),
+    syncState: "synced",
+    filePath: resolveLibraryPath(rootPath, normalized)
   };
 }
 
-function sanitizeFileName(value) {
-  const name = String(value || "MarkNote.md").replace(/[\\/:*?"<>|]/g, "-").trim() || "MarkNote.md";
-  return path.extname(name) ? name : `${name}.md`;
+function resolveLibraryPath(rootPath, relativePath) {
+  if (!String(rootPath || "").trim()) {
+    throw new Error("Missing library root");
+  }
+
+  const root = path.resolve(String(rootPath));
+  const normalized = normalizeLibraryRelativePath(relativePath);
+  if (!normalized) {
+    throw new Error("Invalid library path");
+  }
+
+  const filePath = path.resolve(root, normalized);
+  if (filePath !== root && !filePath.startsWith(root + path.sep)) {
+    throw new Error("Path is outside the library folder");
+  }
+  return filePath;
 }
 
-function setCorsHeaders(response) {
-  response.setHeader("Access-Control-Allow-Origin", "*");
-  response.setHeader("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
-  response.setHeader("Access-Control-Allow-Headers", "Content-Type,X-MarkNote-Sync-Code");
+function normalizeLibraryRelativePath(value) {
+  const normalized = toPosixPath(String(value || ""))
+    .split("/")
+    .filter((part) => part && part !== "." && part !== "..")
+    .map((part) => sanitizeLibraryFileName(part))
+    .join("/");
+  if (!normalized) return "";
+
+  const ext = path.posix.extname(normalized).toLowerCase();
+  if (!ext) return `${normalized}.md`;
+  return isMarkdownFile(normalized) ? normalized : `${normalized}.md`;
 }
 
-function sendJson(response, statusCode, payload) {
-  response.writeHead(statusCode, { "Content-Type": "application/json; charset=utf-8" });
-  response.end(JSON.stringify(payload));
+function sanitizeLibraryFileName(value) {
+  return String(value || "Untitled.md")
+    .replace(/[\\/:*?"<>|]/g, "-")
+    .replace(/\s+/g, " ")
+    .trim() || "Untitled.md";
 }
 
-function readJsonBody(request) {
-  return new Promise((resolve, reject) => {
-    let raw = "";
-    request.setEncoding("utf8");
-    request.on("data", (chunk) => {
-      raw += chunk;
-      if (raw.length > 8 * 1024 * 1024) {
-        reject(new Error("笔记太大，无法通过局域网同步"));
-        request.destroy();
-      }
-    });
-    request.on("end", () => {
-      try {
-        resolve(raw ? JSON.parse(raw) : {});
-      } catch {
-        reject(new Error("手机发送的数据不是有效 JSON"));
-      }
-    });
-    request.on("error", reject);
-  });
+function folderFromRelativePath(relativePath) {
+  const folder = toPosixPath(path.posix.dirname(relativePath));
+  return folder === "." ? "" : folder;
+}
+
+function isMarkdownFile(filePath) {
+  return [".md", ".markdown"].includes(path.extname(String(filePath)).toLowerCase());
+}
+
+async function uniqueLibraryRelativePath(rootPath, preferredRelativePath) {
+  const parsed = path.posix.parse(normalizeLibraryRelativePath(preferredRelativePath));
+  let candidate = `${parsed.dir ? `${parsed.dir}/` : ""}${parsed.name}${parsed.ext || ".md"}`;
+  let index = 2;
+
+  for (;;) {
+    try {
+      await fs.access(resolveLibraryPath(rootPath, candidate));
+      candidate = `${parsed.dir ? `${parsed.dir}/` : ""}${parsed.name} ${index}${parsed.ext || ".md"}`;
+      index += 1;
+    } catch {
+      return candidate;
+    }
+  }
+}
+
+function toPosixPath(value) {
+  return String(value || "").split(path.sep).join("/");
+}
+
+function titleFromMarkdown(markdown = "") {
+  const heading = String(markdown)
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .find((line) => /^#{1,6}\s+/.test(line));
+  if (heading) {
+    return heading.replace(/^#{1,6}\s+/, "").replace(/[*_`~]/g, "").trim().slice(0, 100);
+  }
+
+  const firstText = String(markdown)
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .find(Boolean);
+  return firstText ? firstText.replace(/[#*_`~>-]/g, "").trim().slice(0, 100) : "";
 }
 
 ipcMain.handle("file:open", async () => {
