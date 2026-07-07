@@ -1,4 +1,4 @@
-const { contextBridge, ipcRenderer } = require("electron");
+const { contextBridge, ipcRenderer, webUtils } = require("electron");
 
 contextBridge.exposeInMainWorld("marknote", {
   openFile: () => ipcRenderer.invoke("file:open"),
@@ -12,11 +12,18 @@ contextBridge.exposeInMainWorld("marknote", {
   openReadme: () => ipcRenderer.invoke("file:readme"),
   chooseLibrary: () => ipcRenderer.invoke("library:choose"),
   scanLibrary: (payload) => ipcRenderer.invoke("library:scan", payload),
+  createLibraryFolder: (payload) => ipcRenderer.invoke("library:create-folder", payload),
   readLibraryNote: (payload) => ipcRenderer.invoke("library:read", payload),
   saveLibraryNote: (payload) => ipcRenderer.invoke("library:save", payload),
   renameLibraryNote: (payload) => ipcRenderer.invoke("library:rename", payload),
   deleteLibraryNote: (payload) => ipcRenderer.invoke("library:delete", payload),
   importLibraryFiles: (payload) => ipcRenderer.invoke("library:import-files", payload),
+  getCodexPluginStatus: () => ipcRenderer.invoke("codex-plugin:status"),
+  installCodexPlugin: () => ipcRenderer.invoke("codex-plugin:install"),
+  openCodexPlugin: () => ipcRenderer.invoke("codex-plugin:open"),
+  chooseAiAttachments: () => ipcRenderer.invoke("ai:choose-attachments"),
+  prepareAiAttachments: (filePaths) => ipcRenderer.invoke("ai:prepare-attachments", filePaths),
+  pathForFile: (file) => webUtils?.getPathForFile?.(file) || "",
   askAi: (payload) => ipcRenderer.invoke("ai:complete", payload),
   askAiStream: (payload, handlers = {}) => {
     const requestId = `ai-${Date.now()}-${Math.random().toString(16).slice(2)}`;
@@ -53,7 +60,13 @@ contextBridge.exposeInMainWorld("marknote", {
   confirmUnsavedChanges: (payload) => ipcRenderer.invoke("dialog:confirm-unsaved", payload),
   confirmDraftRestore: (payload) => ipcRenderer.invoke("dialog:confirm-draft-restore", payload),
   confirmDeleteFile: (payload) => ipcRenderer.invoke("dialog:confirm-delete-file", payload),
+  confirmExternalChange: (payload) => ipcRenderer.invoke("dialog:confirm-external-change", payload),
   closeWindow: () => ipcRenderer.send("window:close-confirmed"),
+  onLibraryExternalChange: (callback) => {
+    const listener = (_event, payload) => callback(payload);
+    ipcRenderer.on("library:external-change", listener);
+    return () => ipcRenderer.removeListener("library:external-change", listener);
+  },
   onRequestClose: (callback) => {
     ipcRenderer.on("app:request-close", callback);
   },

@@ -74,7 +74,7 @@ childProcess.execFileSync("ditto", [electronApp, outputApp], { stdio: "inherit" 
 fs.rmSync(resourcesApp, { recursive: true, force: true });
 fs.mkdirSync(resourcesApp, { recursive: true });
 
-for (const name of ["app", "electron", "README.md", "package.json"]) {
+for (const name of ["app", "electron", "plugins", "README.md", "package.json"]) {
   fs.cpSync(path.join(root, name), path.join(resourcesApp, name), { recursive: true });
 }
 copyRequiredBuildAssets();

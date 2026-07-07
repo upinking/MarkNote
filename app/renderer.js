@@ -50,6 +50,18 @@ const translations = {
     aiAgent: "AI Agent",
     aiCloseTitle: "关闭 AI",
     aiSettings: "AI 设置",
+    codexPluginSettings: "Codex 插件",
+    codexPluginTitle: "连接 Codex",
+    codexPluginDescription: "安装 MarkNote 插件后，Codex 可以搜索、读取并在你确认后修改本地笔记。",
+    codexPluginInstall: "安装到 Codex",
+    codexPluginReinstall: "重新安装插件",
+    codexPluginInstalling: "正在安装...",
+    codexPluginInstalled: "已安装",
+    codexPluginNotInstalled: "未安装",
+    codexPluginOpen: "在 Codex 中查看",
+    codexPluginInstallSuccess: "MarkNote 插件已安装",
+    codexPluginInstallFailed: "插件安装失败",
+    codexPluginChecking: "检查中...",
     aiProvider: "服务",
     aiModel: "模型",
     aiBaseUrl: "Base URL",
@@ -65,6 +77,7 @@ const translations = {
     italic: "斜体",
     inlineCode: "行内代码",
     aiSelection: "AI 处理",
+    aiAddSelectionBackground: "添加到 AI 背景",
     aiPolishSelection: "AI 润色所选内容",
     aiSummarySelection: "AI 总结所选内容",
     aiSearchSelection: "AI 搜索所选内容",
@@ -73,6 +86,24 @@ const translations = {
     aiPromptSearchSelection: "请围绕下面选中的文字进行 AI 搜索：解释相关概念、补充背景信息，并列出可能值得继续查找的关键词：",
     aiPlaceholder: "让 AI 帮你总结、润色或整理这篇笔记",
     aiSend: "发送",
+    aiBackgroundTitle: "AI 背景",
+    aiBackgroundAdded: "已添加到 AI 背景",
+    aiBackgroundDuplicate: "这段内容已经在 AI 背景中",
+    aiBackgroundTooMany: "AI 背景最多保留 8 段",
+    aiBackgroundTooLarge: "AI 背景总长度不能超过 24000 字",
+    aiRemoveBackgroundTitle: "移除背景",
+    aiAttachTitle: "添加图片或文件",
+    aiRemoveAttachmentTitle: "移除附件",
+    aiAttachmentDefaultPrompt: "请分析这些附件并总结重点。",
+    aiAttachmentImage: "图片",
+    aiAttachmentDocument: "文件",
+    aiAttachmentTooLarge: "附件太大",
+    aiAttachmentTotalTooLarge: "附件总大小超过 24 MB",
+    aiAttachmentTooMany: "最多添加 6 个附件",
+    aiAttachmentUnsupported: "暂不支持这个文件格式",
+    aiAttachmentReadFailed: "附件读取失败",
+    aiImageUnsupported: "当前 DeepSeek 接口不支持图片输入，请切换到支持视觉的 OpenAI 或 MiMo 模型，或移除图片。",
+    aiDocumentUnsupported: "当前模型无法读取这个文件，请改用 OpenAI，或换成 PDF、Word、Markdown、TXT 等可提取文字的文件。",
     aiThinking: "AI 正在思考...",
     aiThinkingStatus: "AI 正在思考",
     aiWritingDraft: "AI 正在生成修改草案",
@@ -114,6 +145,14 @@ const translations = {
     saveChanges: "保存",
     discardChanges: "不保存",
     cancel: "取消",
+    externalChangedTitle: "笔记在外部发生了变化",
+    externalChangedMessage: "当前笔记在你编辑时被 Codex 或其他程序修改了。",
+    externalChangedDetail: "可载入磁盘版本，或把当前编辑保存为冲突副本后保留两份。",
+    reloadExternal: "载入磁盘版本",
+    keepBothExternal: "保留两份",
+    decideExternalLater: "稍后处理",
+    externalConflictPending: "请先处理外部修改冲突，再保存",
+    conflictCopySaved: "当前编辑已保存为冲突副本",
     saveSuccess: "已保存",
     saveAsSuccess: "已另存为",
     exportSuccess: "PDF 已导出",
@@ -184,6 +223,18 @@ const translations = {
     aiAgent: "AI Agent",
     aiCloseTitle: "Close AI",
     aiSettings: "AI settings",
+    codexPluginSettings: "Codex plugin",
+    codexPluginTitle: "Connect Codex",
+    codexPluginDescription: "Install the MarkNote plugin so Codex can search, read, and modify local notes after you confirm.",
+    codexPluginInstall: "Install in Codex",
+    codexPluginReinstall: "Reinstall plugin",
+    codexPluginInstalling: "Installing...",
+    codexPluginInstalled: "Installed",
+    codexPluginNotInstalled: "Not installed",
+    codexPluginOpen: "View in Codex",
+    codexPluginInstallSuccess: "MarkNote plugin installed",
+    codexPluginInstallFailed: "Plugin installation failed",
+    codexPluginChecking: "Checking...",
     aiProvider: "Provider",
     aiModel: "Model",
     aiBaseUrl: "Base URL",
@@ -199,6 +250,7 @@ const translations = {
     italic: "Italic",
     inlineCode: "Inline code",
     aiSelection: "AI selection",
+    aiAddSelectionBackground: "Add to AI background",
     aiPolishSelection: "AI polish selection",
     aiSummarySelection: "AI summarize selection",
     aiSearchSelection: "AI search selection",
@@ -207,6 +259,24 @@ const translations = {
     aiPromptSearchSelection: "Search around the selected text below: explain related concepts, add background context, and list keywords worth looking up next:",
     aiPlaceholder: "Ask AI to summarize, polish, or organize this note",
     aiSend: "Send",
+    aiBackgroundTitle: "AI background",
+    aiBackgroundAdded: "Added to AI background",
+    aiBackgroundDuplicate: "This text is already in the AI background",
+    aiBackgroundTooMany: "AI background can hold up to 8 excerpts",
+    aiBackgroundTooLarge: "AI background cannot exceed 24,000 characters",
+    aiRemoveBackgroundTitle: "Remove background",
+    aiAttachTitle: "Add images or files",
+    aiRemoveAttachmentTitle: "Remove attachment",
+    aiAttachmentDefaultPrompt: "Analyze these attachments and summarize the key points.",
+    aiAttachmentImage: "Image",
+    aiAttachmentDocument: "File",
+    aiAttachmentTooLarge: "Attachment is too large",
+    aiAttachmentTotalTooLarge: "Attachments exceed 24 MB in total",
+    aiAttachmentTooMany: "You can add up to 6 attachments",
+    aiAttachmentUnsupported: "This file format is not supported yet",
+    aiAttachmentReadFailed: "Could not read the attachment",
+    aiImageUnsupported: "The current DeepSeek API does not accept image input. Switch to a vision-capable OpenAI or MiMo model, or remove the image.",
+    aiDocumentUnsupported: "The current model cannot read this file. Use OpenAI, or attach a PDF, Word, Markdown, TXT, or another file with extractable text.",
     aiThinking: "AI is thinking...",
     aiThinkingStatus: "AI is thinking",
     aiWritingDraft: "AI is drafting changes",
@@ -248,6 +318,14 @@ const translations = {
     saveChanges: "Save",
     discardChanges: "Don't Save",
     cancel: "Cancel",
+    externalChangedTitle: "Note changed outside MarkNote",
+    externalChangedMessage: "Codex or another program changed this note while you were editing it.",
+    externalChangedDetail: "Reload the disk version, or save your edits as a conflict copy and keep both versions.",
+    reloadExternal: "Reload disk version",
+    keepBothExternal: "Keep both versions",
+    decideExternalLater: "Decide later",
+    externalConflictPending: "Resolve the external-change conflict before saving",
+    conflictCopySaved: "Your edits were saved as a conflict copy",
     saveSuccess: "Saved",
     saveAsSuccess: "Saved as",
     exportSuccess: "PDF exported",
@@ -318,6 +396,18 @@ const translations = {
     aiAgent: "AI Agent",
     aiCloseTitle: "AIを閉じる",
     aiSettings: "AI設定",
+    codexPluginSettings: "Codexプラグイン",
+    codexPluginTitle: "Codexに接続",
+    codexPluginDescription: "MarkNoteプラグインをインストールすると、確認後にCodexがローカルノートを検索、閲覧、変更できます。",
+    codexPluginInstall: "Codexにインストール",
+    codexPluginReinstall: "プラグインを再インストール",
+    codexPluginInstalling: "インストール中...",
+    codexPluginInstalled: "インストール済み",
+    codexPluginNotInstalled: "未インストール",
+    codexPluginOpen: "Codexで表示",
+    codexPluginInstallSuccess: "MarkNoteプラグインをインストールしました",
+    codexPluginInstallFailed: "プラグインのインストールに失敗しました",
+    codexPluginChecking: "確認中...",
     aiProvider: "サービス",
     aiModel: "モデル",
     aiBaseUrl: "Base URL",
@@ -333,6 +423,7 @@ const translations = {
     italic: "斜体",
     inlineCode: "インラインコード",
     aiSelection: "AIで処理",
+    aiAddSelectionBackground: "AIの背景に追加",
     aiPolishSelection: "選択範囲をAIで推敲",
     aiSummarySelection: "選択範囲をAIで要約",
     aiSearchSelection: "選択範囲をAIで検索",
@@ -341,6 +432,24 @@ const translations = {
     aiPromptSearchSelection: "以下の選択テキストについてAI検索してください。関連概念を説明し、背景を補足し、次に調べる価値のあるキーワードを挙げてください:",
     aiPlaceholder: "AIにこのノートの要約、推敲、整理を依頼",
     aiSend: "送信",
+    aiBackgroundTitle: "AIの背景",
+    aiBackgroundAdded: "AIの背景に追加しました",
+    aiBackgroundDuplicate: "この文章はすでにAIの背景にあります",
+    aiBackgroundTooMany: "AIの背景は最大8件です",
+    aiBackgroundTooLarge: "AIの背景は合計24,000文字までです",
+    aiRemoveBackgroundTitle: "背景を削除",
+    aiAttachTitle: "画像またはファイルを追加",
+    aiRemoveAttachmentTitle: "添付を削除",
+    aiAttachmentDefaultPrompt: "添付ファイルを分析し、要点をまとめてください。",
+    aiAttachmentImage: "画像",
+    aiAttachmentDocument: "ファイル",
+    aiAttachmentTooLarge: "添付ファイルが大きすぎます",
+    aiAttachmentTotalTooLarge: "添付ファイルの合計が24 MBを超えています",
+    aiAttachmentTooMany: "添付は最大6件です",
+    aiAttachmentUnsupported: "このファイル形式はまだ対応していません",
+    aiAttachmentReadFailed: "添付ファイルを読み取れませんでした",
+    aiImageUnsupported: "現在のDeepSeek APIは画像入力に対応していません。画像対応のOpenAIまたはMiMoモデルに切り替えるか、画像を削除してください。",
+    aiDocumentUnsupported: "現在のモデルではこのファイルを読めません。OpenAIを使うか、PDF、Word、Markdown、TXTなど文字を抽出できるファイルを添付してください。",
     aiThinking: "AIが考えています...",
     aiThinkingStatus: "AIが考えています",
     aiWritingDraft: "AIが変更案を作成中",
@@ -382,6 +491,14 @@ const translations = {
     saveChanges: "保存",
     discardChanges: "保存しない",
     cancel: "キャンセル",
+    externalChangedTitle: "ノートが外部で変更されました",
+    externalChangedMessage: "編集中に Codex または別のアプリがこのノートを変更しました。",
+    externalChangedDetail: "ディスク版を読み込むか、現在の編集を競合コピーとして保存して両方を残せます。",
+    reloadExternal: "ディスク版を読み込む",
+    keepBothExternal: "両方を残す",
+    decideExternalLater: "後で決める",
+    externalConflictPending: "保存する前に外部変更の競合を解決してください",
+    conflictCopySaved: "現在の編集を競合コピーとして保存しました",
     saveSuccess: "保存しました",
     saveAsSuccess: "名前を付けて保存しました",
     exportSuccess: "PDFを書き出しました",
@@ -414,12 +531,24 @@ const librarySettingsKey = "marknote.library.v1";
 const libraryMetadataKey = "marknote.library.metadata.v1";
 const libraryArchiveFolder = "归档";
 const libraryArchiveFilter = "__marknote_archive__";
+let pendingLibraryExternalChange = null;
+let libraryExternalChangeTimer = 0;
 const platform = window.marknote?.platform || "browser";
 const isMac = platform === "darwin" || navigator.platform.toLowerCase().includes("mac");
 const themes = ["light", "dark", "paper", "forest", "ocean", "rose"];
 const viewModes = ["wysiwyg", "edit", "preview", "reading"];
 const languages = ["zh", "en", "ja"];
 const aiProviders = ["openai", "deepseek", "mimo"];
+const aiAttachmentLimits = {
+  maxCount: 6,
+  maxImageBytes: 8 * 1024 * 1024,
+  maxFileBytes: 12 * 1024 * 1024,
+  maxTotalBytes: 24 * 1024 * 1024
+};
+const aiBackgroundLimits = {
+  maxCount: 8,
+  maxTotalCharacters: 24000
+};
 const paneWidthLimits = {
   library: { default: 286, min: 180, max: 420 },
   outline: { default: 220, min: 180, max: 520 }
@@ -479,7 +608,7 @@ const state = {
   headings: [],
   collapsedHeadings: new Set(),
   activeHeadingId: "",
-  hybridActiveLine: 0,
+  hybridActiveLine: -1,
   helpSnapshot: null,
   isHelpOpen: false,
   wysiwyg: null,
@@ -500,13 +629,24 @@ const state = {
   aiPreviousViewMode: "",
   aiLoading: false,
   aiWorkingLabel: "",
+  aiBackgrounds: [],
+  aiAttachments: [],
+  aiAttachmentDragDepth: 0,
   aiMessages: [],
   aiSettings: loadAiSettings(),
   cloudSettings: loadCloudSettings(),
   cloudSession: null,
   cloudStatus: "同步功能后续支持",
+  codexPlugin: {
+    checking: false,
+    installing: false,
+    installed: false,
+    exported: false,
+    message: ""
+  },
   library: loadLibrarySettings(),
   libraryMetadata: loadLibraryMetadata(),
+  externalConflict: null,
   libraryMenu: {
     noteId: "",
     opener: null,
@@ -571,6 +711,10 @@ const elements = {
   aiMessages: document.querySelector("#aiMessages"),
   aiForm: document.querySelector("#aiForm"),
   aiInput: document.querySelector("#aiInput"),
+  aiBackgroundTray: document.querySelector("#aiBackgroundTray"),
+  aiAttachButton: document.querySelector("#aiAttachButton"),
+  aiAttachmentInput: document.querySelector("#aiAttachmentInput"),
+  aiAttachmentTray: document.querySelector("#aiAttachmentTray"),
   aiSendButton: document.querySelector("#aiSendButton"),
   aiProviderSelect: document.querySelector("#aiProviderSelect"),
   aiModelSelect: document.querySelector("#aiModelSelect"),
@@ -585,6 +729,7 @@ const elements = {
   chooseLibraryButton: document.querySelector("#chooseLibraryButton"),
   importLibraryButton: document.querySelector("#importLibraryButton"),
   refreshLibraryButton: document.querySelector("#refreshLibraryButton"),
+  createCategoryButton: document.querySelector("#createCategoryButton"),
   libraryRootLabel: document.querySelector("#libraryRootLabel"),
   librarySearchInput: document.querySelector("#librarySearchInput"),
   folderList: document.querySelector("#folderList"),
@@ -593,6 +738,10 @@ const elements = {
   libraryNoteList: document.querySelector("#libraryNoteList"),
   libraryContextMenu: document.querySelector("#libraryContextMenu"),
   libraryArchiveLabel: document.querySelector("#libraryArchiveLabel"),
+  categoryDialog: document.querySelector("#categoryDialog"),
+  categoryForm: document.querySelector("#categoryForm"),
+  categoryInput: document.querySelector("#categoryInput"),
+  categoryCancelButton: document.querySelector("#categoryCancelButton"),
   aiModelBadge: document.querySelector("#aiModelBadge"),
   settingsToggle: document.querySelector("#settingsToggle"),
   settingsPanel: document.querySelector("#settingsPanel"),
@@ -601,10 +750,16 @@ const elements = {
   settingsMainPage: document.querySelector("#settingsMainPage"),
   cloudSettingsPage: document.querySelector("#cloudSettingsPage"),
   aiSettingsPage: document.querySelector("#aiSettingsPage"),
+  codexPluginSettingsPage: document.querySelector("#codexPluginSettingsPage"),
   cloudSettingsNavButton: document.querySelector("#cloudSettingsNavButton"),
   aiSettingsNavButton: document.querySelector("#aiSettingsNavButton"),
+  codexPluginSettingsNavButton: document.querySelector("#codexPluginSettingsNavButton"),
   cloudSettingsSummary: document.querySelector("#cloudSettingsSummary"),
   aiSettingsSummary: document.querySelector("#aiSettingsSummary"),
+  codexPluginSettingsSummary: document.querySelector("#codexPluginSettingsSummary"),
+  installCodexPluginButton: document.querySelector("#installCodexPluginButton"),
+  openCodexPluginButton: document.querySelector("#openCodexPluginButton"),
+  codexPluginStatus: document.querySelector("#codexPluginStatus"),
   languageSelect: document.querySelector("#languageSelect"),
   themeSelect: document.querySelector("#themeSelect"),
   wrapSetting: document.querySelector("#wrapSetting"),
@@ -937,7 +1092,7 @@ function closeEditorContextMenu() {
 
 function positionEditorContextMenu(x, y) {
   const menu = elements.editorContextMenu;
-  menu.classList.remove("submenuLeft");
+  menu.classList.remove("submenuLeft", "submenuUp");
   menu.style.left = `${x}px`;
   menu.style.top = `${y}px`;
   menu.hidden = false;
@@ -948,6 +1103,17 @@ function positionEditorContextMenu(x, y) {
   menu.style.left = `${Math.max(8, nextLeft)}px`;
   menu.style.top = `${Math.max(8, nextTop)}px`;
   menu.classList.toggle("submenuLeft", Math.max(8, nextLeft) + rect.width + 210 > window.innerWidth);
+
+  const trigger = menu.querySelector(".contextSubmenuTrigger");
+  const panel = menu.querySelector(".contextSubmenuPanel");
+  if (trigger && panel && state.editorContextHasSelection) {
+    panel.style.visibility = "hidden";
+    panel.style.display = "block";
+    const panelHeight = panel.getBoundingClientRect().height;
+    panel.style.removeProperty("display");
+    panel.style.removeProperty("visibility");
+    menu.classList.toggle("submenuUp", trigger.getBoundingClientRect().top + panelHeight > window.innerHeight - 8);
+  }
 }
 
 function renderEditorContextMenu() {
@@ -1073,6 +1239,43 @@ async function sendSelectedTextToAi(action) {
   sendAiMessage(`${t(promptKey)}\n\n${selectedText}`);
 }
 
+function aiBackgroundFingerprint(text) {
+  return String(text || "").replace(/\s+/g, " ").trim();
+}
+
+async function addSelectionToAiBackground() {
+  const selectedText = state.editorContextSelectionText.trim();
+  if (!selectedText) return;
+
+  const fingerprint = aiBackgroundFingerprint(selectedText);
+  if (state.aiBackgrounds.some((background) => aiBackgroundFingerprint(background.text) === fingerprint)) {
+    showToast(t("aiBackgroundDuplicate"));
+    await openAiPanel();
+    elements.aiInput.focus();
+    return;
+  }
+  if (state.aiBackgrounds.length >= aiBackgroundLimits.maxCount) {
+    showToast(t("aiBackgroundTooMany"));
+    return;
+  }
+
+  const totalCharacters = state.aiBackgrounds.reduce((sum, background) => sum + background.text.length, 0);
+  if (totalCharacters + selectedText.length > aiBackgroundLimits.maxTotalCharacters) {
+    showToast(t("aiBackgroundTooLarge"));
+    return;
+  }
+
+  state.aiBackgrounds.push({
+    id: `background-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+    text: selectedText,
+    source: state.fileName
+  });
+  await openAiPanel();
+  showToast(t("aiBackgroundAdded"));
+  renderAiPanel();
+  elements.aiInput.focus();
+}
+
 async function handleEditorContextAction(action) {
   if (action === "copy") {
     await copyContextSelection();
@@ -1086,6 +1289,8 @@ async function handleEditorContextAction(action) {
     replaceContextSelection((text) => `*${text}*`);
   } else if (action === "code") {
     replaceContextSelection((text) => `\`${text}\``);
+  } else if (action === "ai-background") {
+    await addSelectionToAiBackground();
   } else if (action === "ai-polish" || action === "ai-summary" || action === "ai-search") {
     await sendSelectedTextToAi(action);
   }
@@ -1187,6 +1392,7 @@ function loadLibrarySettings() {
       selectedFolder: "",
       searchQuery: "",
       notes: [],
+      folders: [],
       loading: false
     };
   } catch {
@@ -1196,6 +1402,7 @@ function loadLibrarySettings() {
       selectedFolder: "",
       searchQuery: "",
       notes: [],
+      folders: [],
       loading: false
     };
   }
@@ -1357,6 +1564,13 @@ function setLibraryNotes(notes = []) {
   pruneLibraryMetadataPaths();
 }
 
+function setLibrarySnapshot(snapshot = {}) {
+  setLibraryNotes(snapshot.notes || []);
+  state.library.folders = [...new Set((snapshot.folders || [])
+    .map((folder) => normalizeLibraryFolderPath(folder))
+    .filter(Boolean))];
+}
+
 async function chooseLibrary() {
   if (state.isHelpOpen) closeHelp();
   if (!(await confirmIfDirty())) return false;
@@ -1365,7 +1579,7 @@ async function chooseLibrary() {
   if (!result?.rootPath) return false;
 
   state.library.rootPath = result.rootPath;
-  setLibraryNotes(result.notes || []);
+  setLibrarySnapshot(result);
   state.library.selectedFolder = "";
   state.library.searchQuery = "";
   state.library.selectedId = filteredLibraryNotes()[0]?.id || "";
@@ -1394,8 +1608,8 @@ async function refreshLibrary(options = {}) {
   renderLibrary();
   try {
     const result = await window.marknote.scanLibrary({ rootPath: state.library.rootPath });
-    setLibraryNotes(result?.notes || []);
-    if (!filteredLibraryNotes().some((note) => note.id === state.library.selectedId)) {
+    setLibrarySnapshot(result);
+    if (!options.preserveSelection && !filteredLibraryNotes().some((note) => note.id === state.library.selectedId)) {
       state.library.selectedId = filteredLibraryNotes()[0]?.id || "";
     }
     saveLibrarySettings();
@@ -1429,6 +1643,7 @@ async function selectLibraryNote(noteId, options = {}) {
   if (!note) return false;
 
   const normalized = { ...note, id: note.id || note.relativePath };
+  state.externalConflict = null;
   state.library.selectedId = normalized.id;
   rememberRecentLibraryNote(normalized.id);
   state.markdown = normalized.content || "";
@@ -1448,6 +1663,11 @@ async function selectLibraryNote(noteId, options = {}) {
 
 async function saveLibraryNote() {
   if (!state.library.rootPath) return false;
+  if (state.externalConflict?.noteId === state.library.selectedId) {
+    showToast(t("externalConflictPending"));
+    await resolveExternalConflict();
+    return false;
+  }
 
   state.saveStatus = "saving";
   updateStatus();
@@ -1476,6 +1696,130 @@ async function saveLibraryNote() {
   return true;
 }
 
+function conflictCopyPath(noteId) {
+  const normalized = String(noteId || t("untitled")).replace(/\\/g, "/");
+  const slash = normalized.lastIndexOf("/");
+  const folder = slash >= 0 ? normalized.slice(0, slash + 1) : "";
+  const fileName = slash >= 0 ? normalized.slice(slash + 1) : normalized;
+  const dot = fileName.lastIndexOf(".");
+  const base = dot > 0 ? fileName.slice(0, dot) : fileName;
+  const extension = dot > 0 ? fileName.slice(dot) : ".md";
+  const timestamp = new Date().toISOString().slice(0, 19).replace(/[T:]/g, "-");
+  return uniqueClientRelativePath(`${folder}${base} (冲突 ${timestamp})${extension}`);
+}
+
+async function resolveExternalConflict() {
+  const conflict = state.externalConflict;
+  if (!conflict) return true;
+
+  const payload = {
+    title: t("externalChangedTitle"),
+    message: t("externalChangedMessage"),
+    detail: t("externalChangedDetail"),
+    buttons: [t("reloadExternal"), t("keepBothExternal"), t("decideExternalLater")]
+  };
+  let choice = "cancel";
+  if (window.marknote?.confirmExternalChange) {
+    choice = await window.marknote.confirmExternalChange(payload);
+  } else if (window.confirm(`${payload.message}\n\n${payload.detail}`)) {
+    choice = "reload";
+  }
+
+  if (choice === "cancel") return false;
+
+  if (choice === "keep-both") {
+    const copy = await window.marknote?.saveLibraryNote?.({
+      rootPath: state.library.rootPath,
+      relativePath: conflictCopyPath(conflict.noteId),
+      content: state.markdown
+    });
+    if (!copy) return false;
+    state.externalConflict = null;
+    await refreshLibrary({ selectCurrent: false, skipDirtyCheck: true });
+    const nextId = libraryNoteById(conflict.noteId)?.id || copy.relativePath || copy.id;
+    if (nextId) await selectLibraryNote(nextId, { skipDirtyCheck: true, quiet: true });
+    showToast(t("conflictCopySaved"));
+    return true;
+  }
+
+  state.externalConflict = null;
+  await refreshLibrary({ selectCurrent: false, skipDirtyCheck: true });
+  const nextId = libraryNoteById(conflict.noteId)?.id || filteredLibraryNotes()[0]?.id || "";
+  if (nextId) {
+    await selectLibraryNote(nextId, { skipDirtyCheck: true, quiet: true });
+  } else {
+    resetEditorForEmptyLibrary();
+    render();
+  }
+  return true;
+}
+
+async function handleLibraryExternalChange(payload = {}) {
+  if (!state.library.rootPath || !payload.rootPath) return;
+  const normalizeRoot = (value) => {
+    const normalized = String(value).replace(/\\/g, "/").replace(/\/+$/, "");
+    return platform === "win32" ? normalized.toLowerCase() : normalized;
+  };
+  if (normalizeRoot(payload.rootPath) !== normalizeRoot(state.library.rootPath)) return;
+
+  const selectedId = state.library.selectedId;
+  const before = libraryNoteById(selectedId);
+  const wasDirty = state.markdown !== state.savedMarkdown;
+  await refreshLibrary({
+    selectCurrent: false,
+    skipDirtyCheck: true,
+    preserveDraft: true,
+    preserveSelection: true
+  });
+  const after = libraryNoteById(selectedId);
+  const selectedChanged = Boolean(selectedId) && (
+    Boolean(before) !== Boolean(after)
+    || before?.updatedAt !== after?.updatedAt
+    || before?.content !== after?.content
+  );
+  if (!selectedChanged) return;
+
+  if (wasDirty) {
+    state.externalConflict = { noteId: selectedId, detectedAt: new Date().toISOString() };
+    await resolveExternalConflict();
+    return;
+  }
+
+  state.externalConflict = null;
+  if (after) {
+    await selectLibraryNote(selectedId, { skipDirtyCheck: true, quiet: true });
+  } else {
+    state.library.selectedId = filteredLibraryNotes()[0]?.id || "";
+    if (state.library.selectedId) {
+      await selectLibraryNote(state.library.selectedId, { skipDirtyCheck: true, quiet: true });
+    } else {
+      resetEditorForEmptyLibrary();
+      render();
+    }
+  }
+}
+
+function scheduleLibraryExternalChange(payload = {}) {
+  if (pendingLibraryExternalChange?.rootPath === payload.rootPath) {
+    pendingLibraryExternalChange = {
+      rootPath: payload.rootPath,
+      paths: [...new Set([...(pendingLibraryExternalChange.paths || []), ...(payload.paths || [])])],
+      unknownPath: pendingLibraryExternalChange.unknownPath || payload.unknownPath
+    };
+  } else {
+    pendingLibraryExternalChange = payload;
+  }
+  if (libraryExternalChangeTimer) clearTimeout(libraryExternalChangeTimer);
+  libraryExternalChangeTimer = setTimeout(() => {
+    const change = pendingLibraryExternalChange;
+    pendingLibraryExternalChange = null;
+    libraryExternalChangeTimer = 0;
+    handleLibraryExternalChange(change).catch((error) => {
+      console.error("Failed to refresh an external MarkNote change", error);
+    });
+  }, 350);
+}
+
 async function createLibraryNote() {
   if (!state.library.rootPath) {
     showToast("请先选择资料库文件夹");
@@ -1483,7 +1827,13 @@ async function createLibraryNote() {
   }
   if (!(await confirmIfDirty())) return false;
 
-  const relativePath = uniqueClientRelativePath(`${t("untitledHeading")}.md`);
+  const selectedFolder = state.library.selectedFolder && state.library.selectedFolder !== libraryArchiveFilter
+    ? state.library.selectedFolder
+    : "";
+  const preferredPath = selectedFolder
+    ? `${selectedFolder}/${t("untitledHeading")}.md`
+    : `${t("untitledHeading")}.md`;
+  const relativePath = uniqueClientRelativePath(preferredPath);
   const content = `# ${t("untitledHeading")}\n\n${t("startWriting")}\n`;
   const note = await window.marknote?.saveLibraryNote?.({
     rootPath: state.library.rootPath,
@@ -1492,10 +1842,53 @@ async function createLibraryNote() {
   });
   if (!note) return false;
 
-  state.library.selectedFolder = "";
   await refreshLibrary({ selectCurrent: false, skipDirtyCheck: true });
   await selectLibraryNote(note.relativePath || note.id, { skipDirtyCheck: true });
   showToast("已新建笔记");
+  return true;
+}
+
+function openCategoryDialog() {
+  if (!state.library.rootPath) {
+    showToast("请先选择资料库文件夹");
+    return;
+  }
+
+  closeRecentPanel();
+  closeFileContextMenu();
+  closeLibraryContextMenu();
+  elements.categoryInput.value = "";
+  elements.categoryDialog.hidden = false;
+  window.setTimeout(() => elements.categoryInput.focus(), 0);
+}
+
+function closeCategoryDialog() {
+  elements.categoryDialog.hidden = true;
+  elements.categoryInput.value = "";
+}
+
+async function createLibraryCategory(name) {
+  const folder = normalizeLibraryFolderPath(name);
+  if (!folder || folder === libraryArchiveFolder || folder.startsWith(`${libraryArchiveFolder}/`)) {
+    showToast(folder ? "“归档”是保留分类" : "请输入有效的分类名称");
+    return false;
+  }
+
+  const result = await window.marknote?.createLibraryFolder?.({
+    rootPath: state.library.rootPath,
+    folder
+  });
+  if (!result?.ok) {
+    showToast(result?.error === "exists" ? "这个分类已经存在" : "分类创建失败");
+    return false;
+  }
+
+  setLibrarySnapshot(result);
+  state.library.selectedFolder = result.folder || folder;
+  state.library.searchQuery = "";
+  closeCategoryDialog();
+  render();
+  showToast("分类已创建");
   return true;
 }
 
@@ -1513,7 +1906,7 @@ async function importFilesToLibrary(filePaths = []) {
     return false;
   }
 
-  setLibraryNotes(result.notes || []);
+  setLibrarySnapshot(result);
   const firstVisibleNote = filteredLibraryNotes()[0];
   if (!state.library.selectedId && firstVisibleNote) {
     await selectLibraryNote(firstVisibleNote.id, { skipDirtyCheck: true, quiet: true });
@@ -1717,6 +2110,297 @@ function markdownPreviewHtml(markdown) {
   return sanitizeMarkdownHtml(markdownToHtmlWithMath(markdown || ""));
 }
 
+function formatAiAttachmentSize(bytes) {
+  const value = Number(bytes || 0);
+  if (value < 1024) return `${value} B`;
+  if (value < 1024 * 1024) return `${Math.max(0.1, value / 1024).toFixed(1)} KB`;
+  return `${(value / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function aiAttachmentFingerprint(attachment) {
+  return `${attachment.kind}:${attachment.name}:${attachment.size}`;
+}
+
+function aiAttachmentErrorText(error) {
+  const name = error?.name ? `“${error.name}”：` : "";
+  if (error?.error === "too-large") return `${name}${t("aiAttachmentTooLarge")}`;
+  if (error?.error === "total-too-large") return t("aiAttachmentTotalTooLarge");
+  if (error?.error === "too-many") return t("aiAttachmentTooMany");
+  if (error?.error === "unsupported" || error?.error === "not-file") {
+    return `${name}${t("aiAttachmentUnsupported")}`;
+  }
+  return `${name}${t("aiAttachmentReadFailed")}`;
+}
+
+function mergeAiAttachments(incoming, errors = []) {
+  const existing = new Set(state.aiAttachments.map(aiAttachmentFingerprint));
+  let totalBytes = state.aiAttachments.reduce((sum, attachment) => sum + Number(attachment.size || 0), 0);
+  let limitMessage = "";
+
+  for (const attachment of incoming || []) {
+    if (state.aiAttachments.length >= aiAttachmentLimits.maxCount) {
+      limitMessage = t("aiAttachmentTooMany");
+      break;
+    }
+    const fingerprint = aiAttachmentFingerprint(attachment);
+    if (existing.has(fingerprint)) continue;
+    if (totalBytes + Number(attachment.size || 0) > aiAttachmentLimits.maxTotalBytes) {
+      limitMessage = t("aiAttachmentTotalTooLarge");
+      continue;
+    }
+    existing.add(fingerprint);
+    totalBytes += Number(attachment.size || 0);
+    state.aiAttachments.push(attachment);
+  }
+
+  const messages = [...(errors || []).map(aiAttachmentErrorText), limitMessage].filter(Boolean);
+  if (messages.length) showToast(messages[0]);
+  renderAiPanel();
+}
+
+function readBrowserFileAsDataUrl(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result || ""));
+    reader.onerror = () => reject(reader.error || new Error("File read failed"));
+    reader.readAsDataURL(file);
+  });
+}
+
+function browserFileLooksTextual(file) {
+  if (String(file.type || "").startsWith("text/")) return true;
+  return /\.(?:txt|text|md|markdown|csv|tsv|json|html?|xml|ya?ml|log|tex|css|[cm]?js|tsx?|jsx|py|java|c|h|cpp|hpp|cs|go|rs|swift|kt|php|rb|sh|sql)$/i.test(file.name || "");
+}
+
+async function prepareBrowserAiFile(file) {
+  const isImage = String(file.type || "").startsWith("image/");
+  const maxBytes = isImage ? aiAttachmentLimits.maxImageBytes : aiAttachmentLimits.maxFileBytes;
+  if (file.size > maxBytes) {
+    return { ok: false, error: "too-large", name: file.name, size: file.size, maxBytes };
+  }
+
+  if (isImage) {
+    return {
+      ok: true,
+      attachment: {
+        id: `attachment-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+        kind: "image",
+        name: file.name || "image.png",
+        mimeType: file.type || "image/png",
+        size: file.size,
+        dataUrl: await readBrowserFileAsDataUrl(file)
+      }
+    };
+  }
+
+  if (browserFileLooksTextual(file)) {
+    const text = (await file.text()).slice(0, 120000);
+    return {
+      ok: true,
+      attachment: {
+        id: `attachment-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+        kind: "document",
+        name: file.name || "attachment.txt",
+        mimeType: file.type || "text/plain",
+        size: file.size,
+        text,
+        truncated: text.length >= 120000,
+        fileData: ""
+      }
+    };
+  }
+
+  return { ok: false, error: "unsupported", name: file.name };
+}
+
+async function addBrowserAiFiles(files) {
+  const attachments = [];
+  const errors = [];
+  for (const file of Array.from(files || []).slice(0, aiAttachmentLimits.maxCount)) {
+    try {
+      const result = await prepareBrowserAiFile(file);
+      if (result.ok) attachments.push(result.attachment);
+      else errors.push(result);
+    } catch {
+      errors.push({ ok: false, error: "read-failed", name: file.name });
+    }
+  }
+  if ((files || []).length > aiAttachmentLimits.maxCount) {
+    errors.push({ ok: false, error: "too-many" });
+  }
+  mergeAiAttachments(attachments, errors);
+}
+
+async function addAiFiles(files) {
+  const allFiles = Array.from(files || []);
+  if (!allFiles.length) return;
+
+  const pathEntries = allFiles.map((file) => {
+    try {
+      return { file, filePath: window.marknote?.pathForFile?.(file) || "" };
+    } catch {
+      return { file, filePath: "" };
+    }
+  });
+  const filePaths = pathEntries.map((entry) => entry.filePath).filter(Boolean);
+  const browserFiles = pathEntries.filter((entry) => !entry.filePath).map((entry) => entry.file);
+
+  if (filePaths.length && window.marknote?.prepareAiAttachments) {
+    try {
+      const result = await window.marknote.prepareAiAttachments(filePaths);
+      mergeAiAttachments(result?.attachments || [], result?.errors || []);
+    } catch {
+      showToast(t("aiAttachmentReadFailed"));
+    }
+  }
+  if (browserFiles.length) {
+    await addBrowserAiFiles(browserFiles);
+  }
+}
+
+async function chooseAiAttachments() {
+  if (state.aiLoading) return;
+  if (window.marknote?.chooseAiAttachments) {
+    try {
+      const result = await window.marknote.chooseAiAttachments();
+      if (!result?.canceled) {
+        mergeAiAttachments(result?.attachments || [], result?.errors || []);
+      }
+    } catch {
+      showToast(t("aiAttachmentReadFailed"));
+    }
+    return;
+  }
+  elements.aiAttachmentInput?.click();
+}
+
+function dragEventHasFiles(event) {
+  return Array.from(event.dataTransfer?.types || []).includes("Files");
+}
+
+function removeAiAttachment(attachmentId) {
+  state.aiAttachments = state.aiAttachments.filter((attachment) => attachment.id !== attachmentId);
+  renderAiPanel();
+}
+
+function removeAiBackground(backgroundId) {
+  state.aiBackgrounds = state.aiBackgrounds.filter((background) => background.id !== backgroundId);
+  renderAiPanel();
+}
+
+function renderAiBackgroundTray() {
+  if (!elements.aiBackgroundTray) return;
+  elements.aiBackgroundTray.innerHTML = "";
+  elements.aiBackgroundTray.hidden = state.aiBackgrounds.length === 0;
+  if (!state.aiBackgrounds.length) return;
+
+  const header = document.createElement("div");
+  header.className = "aiBackgroundHeader";
+  header.innerHTML = `<i data-lucide="book-open" aria-hidden="true"></i><strong>${escapeHtml(t("aiBackgroundTitle"))}</strong>`;
+
+  const list = document.createElement("div");
+  list.className = "aiBackgroundList";
+  state.aiBackgrounds.forEach((background) => {
+    const item = document.createElement("div");
+    item.className = "aiBackgroundItem";
+    item.title = background.text;
+
+    const text = document.createElement("span");
+    text.className = "aiBackgroundText";
+    const source = document.createElement("small");
+    source.textContent = background.source;
+    const preview = document.createElement("span");
+    preview.textContent = background.text.replace(/\s+/g, " ").trim();
+    text.append(source, preview);
+
+    const remove = document.createElement("button");
+    remove.className = "aiBackgroundRemove";
+    remove.type = "button";
+    remove.dataset.aiRemoveBackground = background.id;
+    remove.title = t("aiRemoveBackgroundTitle");
+    remove.setAttribute("aria-label", t("aiRemoveBackgroundTitle"));
+    remove.innerHTML = '<i data-lucide="x" aria-hidden="true"></i>';
+    item.append(text, remove);
+    list.append(item);
+  });
+
+  elements.aiBackgroundTray.append(header, list);
+}
+
+function aiMessageAttachment(attachment) {
+  return {
+    id: attachment.id,
+    kind: attachment.kind,
+    name: attachment.name,
+    mimeType: attachment.mimeType,
+    size: attachment.size,
+    dataUrl: attachment.kind === "image" ? attachment.dataUrl : ""
+  };
+}
+
+function createAiAttachmentVisual(attachment, options = {}) {
+  const item = document.createElement("div");
+  item.className = options.message ? "aiMessageAttachment" : "aiAttachmentItem";
+
+  if (attachment.kind === "image" && attachment.dataUrl) {
+    const image = document.createElement("img");
+    image.src = attachment.dataUrl;
+    image.alt = attachment.name;
+    image.className = options.message ? "" : "aiAttachmentThumb";
+    item.append(image);
+  } else {
+    const icon = document.createElement("span");
+    icon.className = options.message ? "aiMessageAttachmentIcon" : "aiAttachmentFileIcon";
+    icon.innerHTML = '<i data-lucide="file-text" aria-hidden="true"></i>';
+    item.append(icon);
+  }
+
+  if (options.message) {
+    const name = document.createElement("span");
+    name.textContent = attachment.name;
+    item.append(name);
+    return item;
+  }
+
+  const meta = document.createElement("span");
+  meta.className = "aiAttachmentMeta";
+  const name = document.createElement("strong");
+  name.textContent = attachment.name;
+  const detail = document.createElement("small");
+  detail.textContent = `${t(attachment.kind === "image" ? "aiAttachmentImage" : "aiAttachmentDocument")} · ${formatAiAttachmentSize(attachment.size)}`;
+  meta.append(name, detail);
+
+  const remove = document.createElement("button");
+  remove.className = "aiAttachmentRemove";
+  remove.type = "button";
+  remove.dataset.aiRemoveAttachment = attachment.id;
+  remove.title = t("aiRemoveAttachmentTitle");
+  remove.setAttribute("aria-label", `${t("aiRemoveAttachmentTitle")}：${attachment.name}`);
+  remove.innerHTML = '<i data-lucide="x" aria-hidden="true"></i>';
+  item.append(meta, remove);
+  return item;
+}
+
+function renderAiAttachmentTray() {
+  if (!elements.aiAttachmentTray) return;
+  elements.aiAttachmentTray.innerHTML = "";
+  elements.aiAttachmentTray.hidden = state.aiAttachments.length === 0;
+  state.aiAttachments.forEach((attachment) => {
+    elements.aiAttachmentTray.append(createAiAttachmentVisual(attachment));
+  });
+}
+
+function attachmentProviderError(attachments) {
+  const provider = currentAiProvider();
+  if (provider === "deepseek" && attachments.some((attachment) => attachment.kind === "image")) {
+    return t("aiImageUnsupported");
+  }
+  if (provider !== "openai" && attachments.some((attachment) => attachment.kind === "document" && !attachment.text)) {
+    return t("aiDocumentUnsupported");
+  }
+  return "";
+}
+
 function renderAiPanel() {
   if (!elements.aiPane) return;
 
@@ -1736,6 +2420,10 @@ function renderAiPanel() {
   elements.aiModelBadge.textContent = `${aiProviderLabels[currentAiProvider()] || "AI"} · ${currentAiModel()}`;
   elements.aiSendButton.disabled = state.aiLoading;
   elements.aiInput.disabled = state.aiLoading;
+  elements.aiAttachButton.disabled = state.aiLoading;
+  elements.aiAttachmentInput.disabled = state.aiLoading;
+  renderAiBackgroundTray();
+  renderAiAttachmentTray();
   elements.aiPane.querySelectorAll(".aiQuickActions button").forEach((button) => {
     button.disabled = state.aiLoading;
   });
@@ -1759,6 +2447,14 @@ function renderAiPanel() {
     }
     if (message.streaming && !message.content) {
       bubble.append(createAiWorkingIndicator(message.workingLabel || state.aiWorkingLabel || t("aiThinkingStatus")));
+    }
+    if (message.attachments?.length) {
+      const attachmentList = document.createElement("div");
+      attachmentList.className = "aiMessageAttachments";
+      message.attachments.forEach((attachment) => {
+        attachmentList.append(createAiAttachmentVisual(attachment, { message: true }));
+      });
+      item.append(attachmentList);
     }
     item.append(bubble);
 
@@ -1792,6 +2488,7 @@ function renderAiPanel() {
   }
 
   elements.aiMessages.scrollTop = elements.aiMessages.scrollHeight;
+  renderLucideIcons();
 }
 
 function createAiWorkingIndicator(label) {
@@ -1824,8 +2521,17 @@ function recentAiConversation() {
 }
 
 async function sendAiMessage(instruction) {
-  const trimmed = instruction.trim();
+  const attachments = [...state.aiAttachments];
+  const backgrounds = state.aiBackgrounds.map(({ text, source }) => ({ text, source }));
+  const trimmed = instruction.trim() || (attachments.length ? t("aiAttachmentDefaultPrompt") : "");
   if (!trimmed || state.aiLoading) return;
+
+  const providerError = attachmentProviderError(attachments);
+  if (providerError) {
+    state.aiMessages.push(createAiMessage("error", providerError));
+    renderAiPanel();
+    return;
+  }
 
   if (!currentAiKey()) {
     state.aiMessages.push(createAiMessage("error", t("aiMissingKey")));
@@ -1839,9 +2545,12 @@ async function sendAiMessage(instruction) {
     return;
   }
 
-  state.aiMessages.push(createAiMessage("user", trimmed));
+  state.aiMessages.push(createAiMessage("user", trimmed, {
+    attachments: attachments.map(aiMessageAttachment)
+  }));
   state.aiLoading = true;
   state.aiWorkingLabel = aiWorkingLabelFor(trimmed);
+  state.aiAttachments = [];
   elements.aiInput.value = "";
   renderAiPanel();
 
@@ -1863,7 +2572,9 @@ async function sendAiMessage(instruction) {
           instruction: trimmed,
           markdown: state.markdown,
           fileName: state.fileName,
-          messages: recentAiConversation()
+          messages: recentAiConversation(),
+          backgrounds,
+          attachments
         }, {
           onDelta: (text) => {
             streamingMessage.content = text;
@@ -1894,7 +2605,9 @@ async function sendAiMessage(instruction) {
       instruction: trimmed,
       markdown: state.markdown,
       fileName: state.fileName,
-      messages: recentAiConversation()
+      messages: recentAiConversation(),
+      backgrounds,
+      attachments
     });
 
     if (!result?.ok) {
@@ -2392,7 +3105,7 @@ class LinewiseMarkdownEditor {
     this.root = root;
     this.markdown = markdown;
     this.onChange = onChange;
-    this.activeLine = this.clampLine(Number.isInteger(state.hybridActiveLine) ? state.hybridActiveLine : 0);
+    this.activeLine = -1;
     this.editingCodeBlockStart = null;
     this.editingTableStart = null;
     this.editingMathStart = null;
@@ -2426,8 +3139,7 @@ class LinewiseMarkdownEditor {
 
   async setMarkdown(markdown, options = {}) {
     this.markdown = markdown ?? "";
-    const fallbackLine = Number.isInteger(state.hybridActiveLine) ? state.hybridActiveLine : 0;
-    this.activeLine = options.activeLine ?? (options.preserveActive ? this.activeLine : fallbackLine);
+    this.activeLine = options.activeLine ?? (options.preserveActive ? this.activeLine : -1);
     this.activeLine = this.clampLine(this.activeLine);
     state.hybridActiveLine = this.activeLine;
     this.render({
@@ -3682,6 +4394,7 @@ function renderLibrary() {
   elements.librarySearchInput.value = state.library.searchQuery || "";
   elements.importLibraryButton.disabled = !state.library.rootPath;
   elements.refreshLibraryButton.disabled = !state.library.rootPath || state.library.loading;
+  elements.createCategoryButton.disabled = !state.library.rootPath || state.library.loading;
 
   renderFolderList();
   renderLibraryNoteList();
@@ -3708,6 +4421,9 @@ function libraryFolders() {
   const activeNotes = state.library.notes.filter((note) => !isArchivedLibraryNote(note));
   const archiveCount = state.library.notes.length - activeNotes.length;
   const counts = new Map();
+  state.library.folders
+    .filter((folder) => folder !== libraryArchiveFolder && !folder.startsWith(`${libraryArchiveFolder}/`))
+    .forEach((folder) => counts.set(folder, 0));
   activeNotes.forEach((note) => {
     const folder = note.folder || "";
     if (!folder) return;
@@ -4454,6 +5170,7 @@ function applyLanguage() {
   document.querySelectorAll("[data-i18n-title]").forEach((node) => {
     node.title = t(node.dataset.i18nTitle);
   });
+  elements.aiAttachButton?.setAttribute("aria-label", t("aiAttachTitle"));
 
   document.querySelectorAll("[data-i18n-placeholder]").forEach((node) => {
     node.placeholder = t(node.dataset.i18nPlaceholder);
@@ -4522,19 +5239,98 @@ function renderSettingsPage() {
   elements.settingsMainPage.hidden = page !== "main";
   elements.cloudSettingsPage.hidden = page !== "cloud";
   elements.aiSettingsPage.hidden = page !== "ai";
+  elements.codexPluginSettingsPage.hidden = page !== "codex-plugin";
   elements.settingsBackButton.hidden = page === "main";
   elements.settingsTitle.textContent = page === "cloud"
     ? "同步"
     : page === "ai"
       ? t("aiSettings")
+      : page === "codex-plugin"
+        ? t("codexPluginSettings")
       : t("settings");
   elements.cloudSettingsSummary.textContent = "后续支持";
   elements.aiSettingsSummary.textContent = currentAiProvider();
+  renderCodexPluginSettings();
 }
 
 function openSettingsPage(page) {
   state.settingsPage = page;
   render();
+  if (page === "codex-plugin") refreshCodexPluginStatus();
+}
+
+function renderCodexPluginSettings() {
+  const plugin = state.codexPlugin;
+  const summary = plugin.checking
+    ? t("codexPluginChecking")
+    : plugin.installed
+      ? t("codexPluginInstalled")
+      : t("codexPluginNotInstalled");
+  elements.codexPluginSettingsSummary.textContent = summary;
+  elements.installCodexPluginButton.disabled = plugin.installing;
+  elements.installCodexPluginButton.querySelector("span").textContent = plugin.installing
+    ? t("codexPluginInstalling")
+    : plugin.installed
+      ? t("codexPluginReinstall")
+      : t("codexPluginInstall");
+  elements.openCodexPluginButton.hidden = !(plugin.exported || plugin.installed);
+  elements.codexPluginStatus.textContent = plugin.message || (plugin.installed
+    ? t("codexPluginInstallSuccess")
+    : "");
+}
+
+async function refreshCodexPluginStatus() {
+  if (state.codexPlugin.checking || !window.marknote?.getCodexPluginStatus) return;
+  state.codexPlugin.checking = true;
+  renderCodexPluginSettings();
+  try {
+    const result = await window.marknote.getCodexPluginStatus();
+    state.codexPlugin = {
+      ...state.codexPlugin,
+      ...result,
+      checking: false,
+      installing: false,
+      message: result.installed ? t("codexPluginInstallSuccess") : ""
+    };
+  } catch (error) {
+    state.codexPlugin.checking = false;
+    state.codexPlugin.message = error?.message || t("codexPluginInstallFailed");
+  }
+  renderCodexPluginSettings();
+}
+
+async function installCodexPlugin() {
+  if (state.codexPlugin.installing || !window.marknote?.installCodexPlugin) return;
+  state.codexPlugin.installing = true;
+  state.codexPlugin.message = t("codexPluginInstalling");
+  renderCodexPluginSettings();
+  try {
+    const result = await window.marknote.installCodexPlugin();
+    state.codexPlugin = {
+      ...state.codexPlugin,
+      ...result,
+      checking: false,
+      installing: false,
+      exported: Boolean(result.exported || result.pluginPath),
+      installed: Boolean(result.installed || result.ok),
+      message: result.message || (result.ok ? t("codexPluginInstallSuccess") : t("codexPluginInstallFailed"))
+    };
+    showToast(result.ok ? t("codexPluginInstallSuccess") : t("codexPluginInstallFailed"));
+  } catch (error) {
+    state.codexPlugin.installing = false;
+    state.codexPlugin.message = error?.message || t("codexPluginInstallFailed");
+    showToast(t("codexPluginInstallFailed"));
+  }
+  renderCodexPluginSettings();
+}
+
+async function openCodexPlugin() {
+  try {
+    await window.marknote?.openCodexPlugin?.();
+  } catch (error) {
+    state.codexPlugin.message = error?.message || t("codexPluginInstallFailed");
+    renderCodexPluginSettings();
+  }
 }
 
 function render() {
@@ -5172,6 +5968,9 @@ function bindShortcuts() {
       if (!elements.renameDialog.hidden) {
         closeRenameDialog();
       }
+      if (!elements.categoryDialog.hidden) {
+        closeCategoryDialog();
+      }
       if (state.settingsOpen) {
         state.settingsOpen = false;
         render();
@@ -5334,6 +6133,48 @@ function bindEvents() {
   });
   elements.aiToggle.addEventListener("click", toggleAiPanel);
   elements.aiCloseButton.addEventListener("click", closeAiPanel);
+  elements.aiAttachButton.addEventListener("click", chooseAiAttachments);
+  elements.aiAttachmentInput.addEventListener("change", async (event) => {
+    await addBrowserAiFiles(event.target.files);
+    event.target.value = "";
+  });
+  elements.aiAttachmentTray.addEventListener("click", (event) => {
+    const removeButton = event.target.closest("[data-ai-remove-attachment]");
+    if (removeButton) removeAiAttachment(removeButton.dataset.aiRemoveAttachment);
+  });
+  elements.aiBackgroundTray.addEventListener("click", (event) => {
+    const removeButton = event.target.closest("[data-ai-remove-background]");
+    if (removeButton) removeAiBackground(removeButton.dataset.aiRemoveBackground);
+  });
+  elements.aiPane.addEventListener("dragenter", (event) => {
+    if (!dragEventHasFiles(event)) return;
+    event.preventDefault();
+    state.aiAttachmentDragDepth += 1;
+    elements.aiForm.classList.add("dropActive");
+  });
+  elements.aiPane.addEventListener("dragover", (event) => {
+    if (!dragEventHasFiles(event)) return;
+    event.preventDefault();
+    event.dataTransfer.dropEffect = "copy";
+  });
+  elements.aiPane.addEventListener("dragleave", (event) => {
+    if (!dragEventHasFiles(event)) return;
+    state.aiAttachmentDragDepth = Math.max(0, state.aiAttachmentDragDepth - 1);
+    if (state.aiAttachmentDragDepth === 0) elements.aiForm.classList.remove("dropActive");
+  });
+  elements.aiPane.addEventListener("drop", async (event) => {
+    if (!dragEventHasFiles(event)) return;
+    event.preventDefault();
+    state.aiAttachmentDragDepth = 0;
+    elements.aiForm.classList.remove("dropActive");
+    await addAiFiles(event.dataTransfer.files);
+  });
+  elements.aiInput.addEventListener("paste", async (event) => {
+    const files = Array.from(event.clipboardData?.files || []).filter((file) => String(file.type || "").startsWith("image/"));
+    if (!files.length) return;
+    event.preventDefault();
+    await addBrowserAiFiles(files);
+  });
   elements.aiForm.addEventListener("submit", (event) => {
     event.preventDefault();
     sendAiMessage(elements.aiInput.value);
@@ -5374,6 +6215,9 @@ function bindEvents() {
   elements.settingsBackButton.addEventListener("click", () => openSettingsPage("main"));
   elements.cloudSettingsNavButton.addEventListener("click", () => openSettingsPage("cloud"));
   elements.aiSettingsNavButton.addEventListener("click", () => openSettingsPage("ai"));
+  elements.codexPluginSettingsNavButton.addEventListener("click", () => openSettingsPage("codex-plugin"));
+  elements.installCodexPluginButton.addEventListener("click", installCodexPlugin);
+  elements.openCodexPluginButton.addEventListener("click", openCodexPlugin);
   elements.languageSelect.addEventListener("change", (event) => {
     setLanguage(event.target.value);
   });
@@ -5407,6 +6251,15 @@ function bindEvents() {
   elements.chooseLibraryButton.addEventListener("click", chooseLibrary);
   elements.importLibraryButton.addEventListener("click", () => importFilesToLibrary());
   elements.refreshLibraryButton.addEventListener("click", () => refreshLibrary().then(() => showToast("资料库已刷新")));
+  elements.createCategoryButton.addEventListener("click", openCategoryDialog);
+  elements.categoryCancelButton.addEventListener("click", closeCategoryDialog);
+  elements.categoryForm.addEventListener("submit", (event) => {
+    event.preventDefault();
+    createLibraryCategory(elements.categoryInput.value);
+  });
+  elements.categoryDialog.addEventListener("click", (event) => {
+    if (event.target === elements.categoryDialog) closeCategoryDialog();
+  });
   elements.librarySearchInput.addEventListener("input", (event) => {
     state.library.searchQuery = event.target.value;
     renderLibrary();
@@ -5564,6 +6417,8 @@ function bindEvents() {
       window.marknote.closeWindow();
     }
   });
+
+  window.marknote?.onLibraryExternalChange?.(scheduleLibraryExternalChange);
 
   bindShortcuts();
 }

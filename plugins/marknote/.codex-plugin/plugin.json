@@ -1,0 +1,32 @@
+{
+  "name": "marknote",
+  "version": "0.1.0",
+  "description": "Connect Codex to a local MarkNote Markdown library.",
+  "author": {
+    "name": "MarkNote"
+  },
+  "license": "MIT",
+  "keywords": [
+    "markdown",
+    "notes",
+    "productivity"
+  ],
+  "skills": "./skills/",
+  "mcpServers": "./.mcp.json",
+  "interface": {
+    "displayName": "MarkNote",
+    "shortDescription": "Search and safely edit your MarkNote library.",
+    "longDescription": "Connect Codex to the Markdown library selected in MarkNote. Search, read, create, update, and archive notes with revision-conflict protection.",
+    "developerName": "MarkNote",
+    "category": "Productivity",
+    "capabilities": [
+      "Read",
+      "Write"
+    ],
+    "defaultPrompt": [
+      "搜索我的 MarkNote 笔记并总结相关内容。",
+      "根据我的 MarkNote 笔记整理一份复习提纲。",
+      "在我确认后，把这段内容保存为新的 MarkNote 笔记。"
+    ]
+  }
+}

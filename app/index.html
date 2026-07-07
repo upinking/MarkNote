@@ -80,7 +80,7 @@
         <div class="settingsPanel" id="settingsPanel" hidden>
           <div class="settingsHeader">
             <button class="settingsBackButton" id="settingsBackButton" type="button" hidden>‹</button>
-            <span id="settingsTitle" data-i18n="settings">Settings</span>
+            <span id="settingsTitle">Settings</span>
           </div>
 
           <div class="settingsPage" id="settingsMainPage">
@@ -119,6 +119,11 @@
             <button class="settingsNavButton" id="aiSettingsNavButton" type="button">
               <span data-i18n="aiSettings">AI 设置</span>
               <small id="aiSettingsSummary">OpenAI</small>
+              <span class="settingsNavArrow">›</span>
+            </button>
+            <button class="settingsNavButton" id="codexPluginSettingsNavButton" type="button">
+              <span data-i18n="codexPluginSettings">Codex 插件</span>
+              <small id="codexPluginSettingsSummary">未安装</small>
               <span class="settingsNavArrow">›</span>
             </button>
             <button class="settingAction" id="helpButton" data-i18n-title="helpTitle" title="打开使用说明">
@@ -161,6 +166,20 @@
               <input class="settingInput wide" id="aiApiKeyInput" type="password" autocomplete="off" />
             </label>
           </div>
+
+          <div class="settingsPage" id="codexPluginSettingsPage" hidden>
+            <div class="codexPluginIntro">
+              <strong data-i18n="codexPluginTitle">连接 Codex</strong>
+              <span data-i18n="codexPluginDescription">安装 MarkNote 插件后，Codex 可以搜索、读取并在你确认后修改本地笔记。</span>
+            </div>
+            <button class="settingAction" id="installCodexPluginButton" type="button">
+              <span>安装到 Codex</span>
+            </button>
+            <button class="settingAction" id="openCodexPluginButton" type="button" hidden>
+              <span data-i18n="codexPluginOpen">在 Codex 中查看</span>
+            </button>
+            <div class="cloudStatus" id="codexPluginStatus" aria-live="polite"></div>
+          </div>
         </div>
       </header>
 
@@ -184,6 +203,13 @@
             <span>搜索</span>
             <input id="librarySearchInput" type="search" autocomplete="off" placeholder="标题、正文或文件夹" />
           </label>
+          <div class="libraryFolderHeader">
+            <span>分类</span>
+            <button id="createCategoryButton" type="button" title="新建分类">
+              <i data-lucide="folder-plus" aria-hidden="true"></i>
+              <span>新建</span>
+            </button>
+          </div>
           <nav class="folderList" id="folderList" aria-label="资料库文件夹"></nav>
           <div class="libraryListHeader">
             <span id="libraryListTitle">笔记</span>
@@ -232,8 +258,16 @@
           </div>
           <div class="aiMessages" id="aiMessages"></div>
           <form class="aiComposer" id="aiForm">
-            <textarea id="aiInput" rows="3" data-i18n-placeholder="aiPlaceholder" placeholder="让 AI 帮你总结、润色或整理这篇笔记"></textarea>
-            <button type="submit" id="aiSendButton" data-i18n="aiSend">发送</button>
+            <div class="aiBackgroundTray" id="aiBackgroundTray" hidden></div>
+            <div class="aiAttachmentTray" id="aiAttachmentTray" hidden></div>
+            <div class="aiComposerControls">
+              <button class="aiAttachButton" id="aiAttachButton" type="button" data-i18n-title="aiAttachTitle" title="添加图片或文件" aria-label="添加图片或文件">
+                <i data-lucide="paperclip" aria-hidden="true"></i>
+              </button>
+              <textarea id="aiInput" rows="3" data-i18n-placeholder="aiPlaceholder" placeholder="让 AI 帮你总结、润色或整理这篇笔记"></textarea>
+              <button class="aiSendButton" type="submit" id="aiSendButton" data-i18n="aiSend">发送</button>
+            </div>
+            <input id="aiAttachmentInput" type="file" multiple hidden accept="image/png,image/jpeg,image/webp,image/gif,.pdf,.doc,.docx,.rtf,.odt,.ppt,.pptx,.xls,.xlsx,.txt,.md,.markdown,.csv,.tsv,.json,.html,.xml,.yaml,.yml,.tex,.log,.css,.js,.ts,.tsx,.jsx,.py,.java,.c,.cpp,.h,.hpp,.cs,.go,.rs,.swift,.kt,.php,.rb,.sh,.sql" />
           </form>
         </aside>
       </main>
@@ -262,6 +296,8 @@
             <span class="contextSubmenuArrow">›</span>
           </button>
           <div class="contextSubmenuPanel">
+            <button type="button" data-editor-action="ai-background" data-i18n="aiAddSelectionBackground">Add to AI background</button>
+            <div class="contextDivider"></div>
             <button type="button" data-editor-action="ai-search" data-i18n="aiSearchSelection">AI search selection</button>
             <button type="button" data-editor-action="ai-polish" data-i18n="aiPolishSelection">AI polish selection</button>
             <button type="button" data-editor-action="ai-summary" data-i18n="aiSummarySelection">AI summarize selection</button>
@@ -307,6 +343,18 @@
         <div class="dialogActions">
           <button type="button" class="dialogButton" id="renameCancelButton" data-i18n="cancel">Cancel</button>
           <button type="submit" class="dialogButton primary" data-i18n="renameConfirm">Rename</button>
+        </div>
+      </form>
+    </div>
+
+    <div class="modalBackdrop" id="categoryDialog" hidden>
+      <form class="renameDialog" id="categoryForm">
+        <h2>新建分类</h2>
+        <label for="categoryInput">分类名称</label>
+        <input id="categoryInput" type="text" autocomplete="off" maxlength="80" placeholder="例如：课程笔记" />
+        <div class="dialogActions">
+          <button type="button" class="dialogButton" id="categoryCancelButton">取消</button>
+          <button type="submit" class="dialogButton primary">创建</button>
         </div>
       </form>
     </div>

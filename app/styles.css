@@ -475,9 +475,35 @@ button {
   color: var(--accent);
 }
 
+.settingAction:disabled {
+  cursor: wait;
+  opacity: 0.58;
+}
+
 .settingActionIcon {
   color: var(--muted);
   font-size: 14px;
+}
+
+.codexPluginIntro {
+  display: grid;
+  gap: 6px;
+  margin: 4px;
+  padding: 10px;
+  border: 1px solid var(--border-soft);
+  border-radius: 7px;
+  background: var(--surface-strong);
+}
+
+.codexPluginIntro strong {
+  color: var(--text);
+  font-size: 14px;
+}
+
+.codexPluginIntro span {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.5;
 }
 
 .fileSwitcher {
@@ -739,13 +765,18 @@ button {
   top: -10px;
   left: 100%;
   width: 224px;
-  height: 152px;
+  height: 198px;
   content: "";
 }
 
 .editorContextMenu.submenuLeft .contextSubmenu::after {
   right: 100%;
   left: auto;
+}
+
+.editorContextMenu.submenuUp .contextSubmenu::after {
+  top: auto;
+  bottom: -10px;
 }
 
 .contextSubmenuTrigger {
@@ -778,6 +809,11 @@ button {
 .editorContextMenu.submenuLeft .contextSubmenuPanel {
   right: calc(100% + 6px);
   left: auto;
+}
+
+.editorContextMenu.submenuUp .contextSubmenuPanel {
+  top: auto;
+  bottom: -6px;
 }
 
 .contextSubmenu:hover .contextSubmenuPanel,
@@ -927,7 +963,7 @@ button {
   position: relative;
   display: grid;
   grid-template-columns: minmax(0, 1fr);
-  grid-template-rows: auto auto auto minmax(96px, auto) auto minmax(0, 1fr);
+  grid-template-rows: auto auto auto auto minmax(96px, auto) auto minmax(0, 1fr);
   border-right: 1px solid var(--border);
   background: var(--surface);
   overflow: hidden;
@@ -1016,7 +1052,7 @@ button {
 }
 
 .workspace.libraryCollapsed .libraryPane {
-  grid-template-rows: 54px 0 0 0 0 0;
+  grid-template-rows: 54px 0 0 0 0 0 0;
 }
 
 .workspace.libraryCollapsed .libraryHeader {
@@ -1031,6 +1067,7 @@ button {
 .workspace.libraryCollapsed .libraryIconButton,
 .workspace.libraryCollapsed .libraryActions,
 .workspace.libraryCollapsed .librarySearch,
+.workspace.libraryCollapsed .libraryFolderHeader,
 .workspace.libraryCollapsed .folderList,
 .workspace.libraryCollapsed .libraryListHeader,
 .workspace.libraryCollapsed .libraryNoteList {
@@ -1138,6 +1175,58 @@ button {
   font-weight: 620;
   letter-spacing: 0;
   text-transform: none;
+}
+
+.libraryFolderHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 34px;
+  padding: 0 10px 6px 12px;
+  color: var(--muted);
+  transition:
+    opacity 180ms cubic-bezier(0.16, 1, 0.3, 1),
+    transform 260ms cubic-bezier(0.16, 1, 0.3, 1),
+    visibility 180ms ease;
+}
+
+.libraryFolderHeader > span {
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.libraryFolderHeader button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  min-height: 28px;
+  border: 0;
+  border-radius: 6px;
+  padding: 0 7px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 760;
+}
+
+.libraryFolderHeader button:hover,
+.libraryFolderHeader button:focus-visible {
+  outline: none;
+  background: var(--surface-strong);
+  color: var(--accent-text);
+}
+
+.libraryFolderHeader button:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.libraryFolderHeader button svg {
+  width: 15px;
+  height: 15px;
+  stroke-width: 2;
 }
 
 .folderList {
@@ -1729,7 +1818,10 @@ button {
   background: var(--surface);
   color: var(--text);
   padding: 26px 34px var(--writing-bottom-space);
-  scroll-padding-block: 26px var(--writing-bottom-space);
+  /* Keep the large writing space out of the browser's caret reveal margin.
+     Chromium applies scroll-padding when arrow keys move the caret, so using
+     82vh here made a one-character move scroll the whole editor. */
+  scroll-padding-block: 26px 28px;
 }
 
 .hybridLine {
@@ -2099,7 +2191,7 @@ button {
   border: 0;
   outline: none;
   padding: 22px 26px var(--writing-bottom-space);
-  scroll-padding-block: 22px var(--writing-bottom-space);
+  scroll-padding-block: 22px 28px;
   background: var(--surface);
   color: var(--text);
   font-family: var(--mono);
@@ -2233,6 +2325,8 @@ button {
 
 .aiMessage.user {
   display: flex;
+  flex-direction: column;
+  align-items: flex-end;
   justify-content: flex-end;
 }
 
@@ -2430,6 +2524,60 @@ button {
   color: #991b1b;
 }
 
+.aiMessageAttachments {
+  display: flex;
+  justify-content: flex-end;
+  gap: 7px;
+  flex-wrap: wrap;
+  max-width: 92%;
+  margin-bottom: 7px;
+}
+
+.aiMessageAttachment {
+  display: grid;
+  grid-template-columns: 32px minmax(0, 1fr);
+  align-items: center;
+  gap: 7px;
+  max-width: 190px;
+  min-height: 40px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  padding: 4px 7px 4px 4px;
+  background: var(--surface-strong);
+  color: var(--text);
+}
+
+.aiMessageAttachment img {
+  width: 32px;
+  height: 32px;
+  border-radius: 5px;
+  object-fit: cover;
+}
+
+.aiMessageAttachmentIcon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 5px;
+  background: var(--accent-soft);
+  color: var(--accent-text);
+}
+
+.aiMessageAttachmentIcon svg {
+  width: 16px;
+  height: 16px;
+}
+
+.aiMessageAttachment span:last-child {
+  overflow: hidden;
+  font-size: 11px;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .aiDraftCard {
   display: grid;
   gap: 10px;
@@ -2470,18 +2618,235 @@ button {
 }
 
 .aiDraftActions .primary,
-.aiComposer button {
+.aiSendButton {
   border-color: var(--text);
   background: var(--text);
   color: var(--surface);
 }
 
 .aiComposer {
+  position: relative;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 10px;
+  gap: 8px;
   padding: 12px;
   border-top: 1px solid var(--border);
+  transition: background-color 160ms ease, box-shadow 160ms ease;
+}
+
+.aiComposer.dropActive {
+  background: var(--accent-soft);
+  box-shadow: inset 0 0 0 2px var(--accent);
+}
+
+.aiComposerControls {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 10px;
+  min-width: 0;
+}
+
+.aiBackgroundTray {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.aiBackgroundHeader {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.aiBackgroundHeader svg {
+  width: 13px;
+  height: 13px;
+}
+
+.aiBackgroundList {
+  display: flex;
+  gap: 7px;
+  min-width: 0;
+  overflow-x: auto;
+  padding-bottom: 1px;
+}
+
+.aiBackgroundItem {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 24px;
+  align-items: center;
+  gap: 6px;
+  flex: 0 0 auto;
+  width: 210px;
+  min-height: 44px;
+  padding: 5px 4px 5px 8px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: var(--surface-strong);
+}
+
+.aiBackgroundText {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.aiBackgroundText small,
+.aiBackgroundText > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.aiBackgroundText small {
+  color: var(--muted);
+  font-size: 10px;
+}
+
+.aiBackgroundText > span {
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.aiBackgroundRemove {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  min-width: 24px;
+  height: 24px;
+  padding: 0 !important;
+  border: 0 !important;
+  border-radius: 6px !important;
+  background: transparent !important;
+  color: var(--muted) !important;
+}
+
+.aiBackgroundRemove:hover {
+  background: var(--accent-soft) !important;
+  color: var(--accent-text) !important;
+}
+
+.aiBackgroundRemove svg {
+  width: 14px;
+  height: 14px;
+}
+
+.aiAttachmentTray {
+  display: flex;
+  gap: 7px;
+  min-width: 0;
+  max-height: 108px;
+  overflow-x: auto;
+  padding-bottom: 1px;
+}
+
+.aiAttachmentItem {
+  position: relative;
+  display: grid;
+  grid-template-columns: 38px minmax(0, 1fr) 24px;
+  align-items: center;
+  gap: 7px;
+  flex: 0 0 auto;
+  width: 210px;
+  min-height: 48px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  padding: 4px;
+  background: var(--surface-strong);
+}
+
+.aiAttachmentThumb,
+.aiAttachmentFileIcon {
+  width: 38px;
+  height: 38px;
+  border-radius: 6px;
+}
+
+.aiAttachmentThumb {
+  object-fit: cover;
+}
+
+.aiAttachmentFileIcon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--accent-soft);
+  color: var(--accent-text);
+}
+
+.aiAttachmentFileIcon svg {
+  width: 18px;
+  height: 18px;
+}
+
+.aiAttachmentMeta {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.aiAttachmentMeta strong,
+.aiAttachmentMeta small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.aiAttachmentMeta strong {
+  font-size: 12px;
+}
+
+.aiAttachmentMeta small {
+  color: var(--muted);
+  font-size: 10px;
+}
+
+.aiAttachmentRemove {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  min-width: 24px;
+  height: 24px;
+  border: 0 !important;
+  border-radius: 6px !important;
+  padding: 0 !important;
+  background: transparent !important;
+  color: var(--muted) !important;
+}
+
+.aiAttachmentRemove:hover {
+  background: var(--accent-soft) !important;
+  color: var(--accent-text) !important;
+}
+
+.aiAttachmentRemove svg {
+  width: 14px;
+  height: 14px;
+}
+
+.aiAttachButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  min-width: 36px !important;
+  height: 36px !important;
+  padding: 0 !important;
+  color: var(--muted) !important;
+}
+
+.aiAttachButton:hover {
+  border-color: var(--accent);
+  color: var(--accent-text) !important;
+}
+
+.aiAttachButton svg {
+  width: 17px;
+  height: 17px;
 }
 
 .aiComposer textarea {
@@ -2499,7 +2864,7 @@ button {
   line-height: 1.45;
 }
 
-.aiComposer button {
+.aiSendButton {
   min-width: 58px;
   height: 36px;
   align-self: end;

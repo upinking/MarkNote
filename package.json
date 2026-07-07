@@ -5,6 +5,8 @@
   "author": "Codex",
   "main": "electron/main.cjs",
   "scripts": {
+    "test": "node --test tests/*.test.cjs",
+    "test:plugin": "node --test plugins/marknote/tests/*.test.cjs",
     "build:wysiwyg": "vite build --config vite.wysiwyg.config.mjs && node scripts/copy-katex.cjs && node scripts/copy-lucide.cjs",
     "dev": "npm run build:wysiwyg && electron .",
     "build": "electron-builder",
@@ -23,8 +25,12 @@
       "app/**/*",
       "build/**/*",
       "electron/**/*",
+      "plugins/marknote/**/*",
       "README.md",
       "package.json"
+    ],
+    "asarUnpack": [
+      "plugins/marknote/**/*"
     ],
     "mac": {
       "category": "public.app-category.productivity",

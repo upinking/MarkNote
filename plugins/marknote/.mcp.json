@@ -1,0 +1,13 @@
+{
+  "mcpServers": {
+    "marknote": {
+      "title": "MarkNote",
+      "description": "Search, read, create, update, and archive notes in the local MarkNote library.",
+      "cwd": ".",
+      "command": "node",
+      "args": [
+        "./mcp/server.cjs"
+      ]
+    }
+  }
+}
