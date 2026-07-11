@@ -161,7 +161,7 @@ async function readNote(rootPath, relativePath) {
 function noteFromContent(relativePath, content, stat) {
   return {
     path: relativePath,
-    title: titleFromMarkdown(content, path.posix.basename(relativePath, path.posix.extname(relativePath))),
+    title: path.posix.basename(relativePath, path.posix.extname(relativePath)),
     content,
     updatedAt: stat.mtime.toISOString(),
     size: stat.size,

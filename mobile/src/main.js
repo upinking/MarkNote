@@ -1,6 +1,32 @@
 import "katex/dist/katex.min.css";
+import { Capacitor, registerPlugin } from "@capacitor/core";
+import {
+  ArrowUpToLine,
+  Bot,
+  Check,
+  ChevronRight,
+  Clock3,
+  Cloud,
+  createElement,
+  FileText,
+  GitBranch,
+  List,
+  NotebookPen,
+  Plus,
+  RefreshCw,
+  Save,
+  Search,
+  Settings,
+  Sparkles,
+  TableOfContents,
+  Trash2,
+  WandSparkles,
+  X,
+  Zap
+} from "lucide";
 import { requestAiCompletion, aiProviders, defaultAiSettings } from "../../shared/ai.js";
 import { extractHeadings, markdownDocumentToHtml, escapeHtml } from "../../shared/markdown.js";
+import { syncNotesWithGitHub } from "../../shared/github-sync.mjs";
 import {
   createEmptyNote,
   noteSyncStates,
@@ -14,8 +40,28 @@ const keys = {
   repositoryNotes: "marknote.mobile.repository.notes.v1",
   migrationDone: "marknote.mobile.repository.migrated.v1",
   selectedId: "marknote.mobile.selectedId",
-  ai: "marknote.mobile.ai"
+  ai: "marknote.mobile.ai",
+  github: "marknote.mobile.github.v1",
+  syncBaseline: "marknote.mobile.github.baseline.v1"
 };
+
+const SecureStorage = registerPlugin("SecureStorage");
+const githubTokenSessionKey = "marknote.github.token.session";
+const defaultGitHubSettings = { owner: "", repo: "", branch: "main", remoteFolder: "notes" };
+const longNoteThreshold = 6000;
+const documentRenderCache = new Map();
+const headingRenderCache = new Map();
+const pendingDocumentRenders = new Set();
+let readerQuickMenuTimer = 0;
+
+function lucideIcon(iconNode, className = "") {
+  return createElement(iconNode, {
+    width: 20,
+    height: 20,
+    class: className,
+    "aria-hidden": "true"
+  }).outerHTML;
+}
 
 const NoteRepository = {
   list() {
@@ -48,22 +94,39 @@ const state = {
   syncing: false,
   toast: "",
   conflict: null,
-  syncMessage: "手动同步后续支持",
+  syncMessage: "请先配置 GitHub 私有仓库",
+  githubSettings: loadJson(keys.github, defaultGitHubSettings),
+  githubTokenConfigured: false,
   searchQuery: "",
   aiPrompt: "",
   aiResult: "",
-  aiLoading: false
+  aiLoading: false,
+  quickMenuOpen: false,
+  readerScrollPositions: new Map()
 };
 
 const app = document.querySelector("#app");
 
 init();
 
+window.addEventListener("keydown", (event) => {
+  if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
+    event.preventDefault();
+    setMode("list");
+    window.requestAnimationFrame(() => app.querySelector(".noteSearchInput")?.focus());
+  }
+});
+
+window.addEventListener("scroll", () => {
+  if (state.mode === "reader" && state.quickMenuOpen) closeReaderQuickMenu();
+}, { passive: true });
+
 async function init() {
+  document.documentElement.classList.toggle("nativeApp", Capacitor.isNativePlatform());
   render();
 
   if (!state.notes.length) {
-    const note = createEmptyNote();
+    const note = createMobileNote();
     state.notes = [note];
     state.selectedId = note.id;
     state.editorDraft = note.content;
@@ -74,6 +137,7 @@ async function init() {
     state.selectedId = state.notes[0]?.id || "";
   }
   state.editorDraft = selectedNote()?.content || "";
+  state.githubTokenConfigured = Boolean(await getSecureGitHubToken().catch(() => ""));
   render();
 }
 
@@ -118,9 +182,47 @@ function normalizeLocalNote(note) {
     created_at: note.created_at || now,
     updated_at: note.updated_at || now,
     deleted_at: null,
+    relativePath: note.relativePath || mobileRelativePath(note),
     lastSyncedAt: note.lastSyncedAt || "",
-    syncState: noteSyncStates.synced
+    syncState: note.syncState || noteSyncStates.pending
   };
+}
+
+function createMobileNote() {
+  const note = createEmptyNote();
+  return { ...note, relativePath: mobileRelativePath(note) };
+}
+
+function mobileRelativePath(note) {
+  const title = titleFromMarkdown(note?.content || note?.title || "未命名笔记")
+    .replace(/[\\/:*?"<>|]/g, "-")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 48) || "未命名笔记";
+  const unique = String(note?.id || crypto.randomUUID()).replace(/^local-/, "").slice(0, 8);
+  return `手机笔记/${title}-${unique}.md`;
+}
+
+async function getSecureGitHubToken() {
+  if (!Capacitor.isNativePlatform()) return sessionStorage.getItem(githubTokenSessionKey) || "";
+  const result = await SecureStorage.get();
+  return String(result?.value || "");
+}
+
+async function setSecureGitHubToken(token) {
+  if (!Capacitor.isNativePlatform()) {
+    sessionStorage.setItem(githubTokenSessionKey, token);
+    return;
+  }
+  await SecureStorage.set({ value: token });
+}
+
+async function removeSecureGitHubToken() {
+  if (!Capacitor.isNativePlatform()) {
+    sessionStorage.removeItem(githubTokenSessionKey);
+    return;
+  }
+  await SecureStorage.remove();
 }
 
 function saveLocalNotes() {
@@ -132,26 +234,76 @@ function selectedNote() {
   return state.notes.find((note) => note.id === state.selectedId) || state.notes[0] || null;
 }
 
+function currentWindowScrollTop() {
+  return Math.max(0, window.scrollY || document.scrollingElement?.scrollTop || 0);
+}
+
+function rememberReaderScrollPosition() {
+  const note = selectedNote();
+  if (!note || state.mode !== "reader") return;
+  state.readerScrollPositions.set(note.id, currentWindowScrollTop());
+}
+
+function jumpWindowTo(top) {
+  const root = document.documentElement;
+  const previousBehavior = root.style.scrollBehavior;
+  root.style.scrollBehavior = "auto";
+  window.scrollTo(0, Math.max(0, Number(top) || 0));
+  root.style.scrollBehavior = previousBehavior;
+}
+
+function restoreReaderScrollPosition(top = state.readerScrollPositions.get(state.selectedId) || 0) {
+  const noteId = state.selectedId;
+  const restore = () => {
+    if (state.mode !== "reader" || state.selectedId !== noteId) return;
+    jumpWindowTo(top);
+  };
+
+  window.requestAnimationFrame(() => {
+    restore();
+    window.requestAnimationFrame(restore);
+  });
+  window.setTimeout(restore, 120);
+}
+
 function setMode(mode) {
+  const previousMode = state.mode;
+  if (previousMode === "reader" && mode !== "reader") rememberReaderScrollPosition();
+  closeReaderQuickMenu();
   state.mode = mode;
   state.panel = "";
   if (mode === "editor") {
     state.editorDraft = selectedNote()?.content || "";
   }
   render();
+  if (mode === "reader") {
+    restoreReaderScrollPosition();
+  } else if (previousMode !== mode) {
+    jumpWindowTo(0);
+  }
+}
+
+function toggleHomeMode() {
+  if (state.mode === "list" && selectedNote()) {
+    setMode("reader");
+  } else {
+    setMode("list");
+  }
 }
 
 function selectNote(id) {
+  closeReaderQuickMenu();
   state.selectedId = id;
   state.editorDraft = selectedNote()?.content || "";
   state.mode = "reader";
   state.panel = "";
   saveLocalNotes();
   render();
+  restoreReaderScrollPosition(0);
 }
 
 function createNote() {
-  const note = createEmptyNote();
+  const note = createMobileNote();
   state.notes = sortNotes([note, ...state.notes]);
   state.selectedId = note.id;
   state.editorDraft = note.content;
@@ -170,7 +322,7 @@ async function saveDraft() {
     title: titleFromMarkdown(state.editorDraft),
     content: state.editorDraft,
     updated_at: now,
-    syncState: noteSyncStates.synced
+    syncState: noteSyncStates.pending
   };
   replaceNote(next);
   state.mode = "reader";
@@ -186,24 +338,145 @@ function replaceNote(nextNote) {
 async function deleteSelectedNote() {
   const note = selectedNote();
   if (!note) return;
+  if (!window.confirm(`确定删除「${note.title || "未命名笔记"}」吗？`)) return;
 
   state.notes = NoteRepository.delete(note.id);
   state.selectedId = state.notes.find((item) => !item.deleted_at)?.id || "";
   state.mode = "reader";
+  state.panel = "";
   saveLocalNotes();
   render();
 }
 
 async function signOut() {
-  showToast("手动同步后续支持");
+  await removeSecureGitHubToken();
+  state.githubTokenConfigured = false;
+  state.syncMessage = "GitHub Token 已清除";
+  showToast("已断开 GitHub");
   render();
 }
 
 async function saveSettings(event) {
   event.preventDefault();
-  showToast("手动同步后续支持");
-  state.panel = "";
+  const form = new FormData(event.currentTarget);
+  state.githubSettings = {
+    owner: String(form.get("owner") || "").trim(),
+    repo: String(form.get("repo") || "").trim(),
+    branch: String(form.get("branch") || "main").trim() || "main",
+    remoteFolder: String(form.get("remoteFolder") || "notes").trim() || "notes"
+  };
+  const token = String(form.get("token") || "").trim();
+  if (!state.githubSettings.owner || !state.githubSettings.repo) {
+    state.syncMessage = "请填写 GitHub 用户名和仓库名";
+    render();
+    return;
+  }
+  try {
+    if (token) {
+      await setSecureGitHubToken(token);
+      state.githubTokenConfigured = true;
+    }
+    if (!state.githubTokenConfigured) throw new Error("请填写 Fine-grained Token");
+    localStorage.setItem(keys.github, JSON.stringify(state.githubSettings));
+    state.syncMessage = "设置已保存，可以点击立即同步";
+    showToast("GitHub 设置已保存");
+    render();
+  } catch (error) {
+    state.syncMessage = error?.message || "无法保存 GitHub 设置";
+    render();
+  }
+}
+
+async function runGitHubSync() {
+  if (state.syncing) return;
+  if (state.mode === "editor") await saveDraft();
+  state.syncing = true;
+  state.syncMessage = "正在比较手机和 GitHub 上的笔记…";
   render();
+
+  try {
+    const token = await getSecureGitHubToken();
+    if (!token) throw new Error("请先在设置中保存 GitHub Token");
+    if (!state.githubSettings.owner || !state.githubSettings.repo) throw new Error("请先填写 GitHub 用户名和仓库名");
+    const baseline = readSyncBaseline();
+    const result = await syncNotesWithGitHub({
+      settings: state.githubSettings,
+      token,
+      baseline,
+      localNotes: state.notes
+        .filter((note) => !note.deleted_at)
+        .map((note) => ({ path: note.relativePath, content: note.content })),
+      writeLocal: writeSyncedNote,
+      deleteLocal: deleteSyncedNote,
+      resolveConflict: requestMobileConflict,
+      deviceLabel: "手机"
+    });
+    localStorage.setItem(keys.syncBaseline, JSON.stringify(result.baseline));
+    const syncedAt = new Date().toISOString();
+    state.notes = state.notes.map((note) => ({
+      ...note,
+      lastSyncedAt: syncedAt,
+      syncState: noteSyncStates.synced
+    }));
+    if (!selectedNote()) state.selectedId = state.notes[0]?.id || "";
+    state.editorDraft = selectedNote()?.content || "";
+    saveLocalNotes();
+    state.syncMessage = mobileSyncSummary(result.summary);
+    showToast("GitHub 同步完成");
+  } catch (error) {
+    state.syncMessage = cleanSyncError(error);
+    showToast("GitHub 同步失败");
+  } finally {
+    state.syncing = false;
+    render();
+  }
+}
+
+async function writeSyncedNote(relativePath, content) {
+  const current = state.notes.find((note) => note.relativePath === relativePath);
+  const now = new Date().toISOString();
+  const next = {
+    ...(current || {}),
+    id: current?.id || `github-${crypto.randomUUID()}`,
+    title: titleFromMarkdown(content),
+    content,
+    relativePath,
+    created_at: current?.created_at || now,
+    updated_at: now,
+    deleted_at: null,
+    lastSyncedAt: now,
+    syncState: noteSyncStates.synced
+  };
+  state.notes = NoteRepository.save(next);
+  if (!state.selectedId) state.selectedId = next.id;
+}
+
+async function deleteSyncedNote(relativePath) {
+  const current = state.notes.find((note) => note.relativePath === relativePath);
+  if (!current) return;
+  state.notes = NoteRepository.delete(current.id);
+  if (state.selectedId === current.id) state.selectedId = state.notes[0]?.id || "";
+  saveLocalNotes();
+}
+
+function readSyncBaseline() {
+  try {
+    const value = JSON.parse(localStorage.getItem(keys.syncBaseline) || "null");
+    return value?.version === 1 ? value : { version: 1, notes: {} };
+  } catch {
+    return { version: 1, notes: {} };
+  }
+}
+
+function mobileSyncSummary(summary = {}) {
+  const conflicts = Array.isArray(summary.conflicts) ? summary.conflicts.length : 0;
+  return `同步完成：上传 ${summary.uploaded || 0}，下载 ${summary.downloaded || 0}，删除 ${
+    (summary.deletedLocal || 0) + (summary.deletedRemote || 0)
+  }。${conflicts ? `已保留 ${conflicts} 个冲突版本。` : "没有冲突。"}`;
+}
+
+function cleanSyncError(error) {
+  return String(error?.message || error || "同步失败").replace(/^Error:\s*/, "");
 }
 
 function saveAiSettings(event) {
@@ -269,13 +542,17 @@ function applyAiResult() {
 
 function resolveConflict(choice) {
   if (!state.conflict) return;
-  const next = choice === "remote"
-    ? state.conflict.remote
-    : { ...state.conflict.local, syncState: noteSyncStates.synced, lastSyncedAt: "" };
-  replaceNote(next);
-  state.selectedId = next.id;
+  const pending = state.conflict;
   state.conflict = null;
   render();
+  pending.resolve(choice);
+}
+
+function requestMobileConflict(conflict) {
+  return new Promise((resolve) => {
+    state.conflict = { ...conflict, resolve };
+    render();
+  });
 }
 
 function showToast(message) {
@@ -289,23 +566,95 @@ function showToast(message) {
 }
 
 function syncLabel(note) {
+  if (state.syncing) return "同步中";
   if (!note) return "";
-  return "本机";
+  if (note.syncState === noteSyncStates.pending) return "待同步";
+  return note.lastSyncedAt ? "已同步" : "本机";
+}
+
+function noteRenderKey(note) {
+  return `${note?.id || "none"}:${note?.updated_at || ""}:${note?.content?.length || 0}`;
+}
+
+function rememberRenderedDocument(key, html) {
+  documentRenderCache.set(key, html);
+  while (documentRenderCache.size > 8) {
+    documentRenderCache.delete(documentRenderCache.keys().next().value);
+  }
+}
+
+function headingsForNote(note) {
+  if (!note) return [];
+  const key = noteRenderKey(note);
+  if (!headingRenderCache.has(key)) {
+    headingRenderCache.set(key, extractHeadings(note.content || ""));
+    while (headingRenderCache.size > 8) {
+      headingRenderCache.delete(headingRenderCache.keys().next().value);
+    }
+  }
+  return headingRenderCache.get(key);
+}
+
+function documentViewState(note) {
+  const key = noteRenderKey(note);
+  const cached = documentRenderCache.get(key);
+  if (cached) return { html: cached, key, pending: false };
+
+  if ((note?.content?.length || 0) < longNoteThreshold) {
+    const html = markdownDocumentToHtml(note?.content || "");
+    rememberRenderedDocument(key, html);
+    return { html, key, pending: false };
+  }
+
+  scheduleLongDocumentRender(note, key);
+  return {
+    html: `<div class="documentLoading" role="status"><i></i><strong>正在整理长笔记</strong><span>先显示阅读界面，再加载正文内容</span></div>`,
+    key,
+    pending: true
+  };
+}
+
+function scheduleLongDocumentRender(note, key) {
+  if (pendingDocumentRenders.has(key)) return;
+  pendingDocumentRenders.add(key);
+
+  window.requestAnimationFrame(() => {
+    window.requestAnimationFrame(() => {
+      const current = selectedNote();
+      if (!current || noteRenderKey(current) !== key || state.mode !== "reader") {
+        pendingDocumentRenders.delete(key);
+        return;
+      }
+
+      const html = markdownDocumentToHtml(note.content || "");
+      rememberRenderedDocument(key, html);
+      pendingDocumentRenders.delete(key);
+
+      const article = app.querySelector(".document");
+      if (!article || article.dataset.renderKey !== key) return;
+      article.innerHTML = html;
+      article.classList.remove("documentPending");
+      article.setAttribute("aria-busy", "false");
+    });
+  });
 }
 
 function render() {
   const note = selectedNote();
-  const headings = extractHeadings(note?.content || "");
+  const headings = headingsForNote(note);
 
   app.innerHTML = `
     <div class="mobileShell">
       <header class="topBar">
-        <button class="brandButton" data-action="home" type="button">
-          <img src="/icon.png" alt="" />
-          <span>MarkNote</span>
+        <button class="brandButton" data-action="home" type="button" aria-label="${state.mode === "list" ? "返回当前笔记" : "打开笔记列表"}">
+          <span class="brandMark">${lucideIcon(NotebookPen)}</span>
+          <span class="brandCopy">
+            <strong>MarkNote</strong>
+            <small>quietly yours</small>
+          </span>
         </button>
         <div class="topActions">
-          <span class="syncPill ${note?.syncState || ""}">${syncLabel(note)}</span>
+          <span class="syncPill ${note?.syncState || ""}"><i></i>${syncLabel(note)}</span>
           <button class="iconButton" data-action="refresh" type="button" aria-label="同步">${iconRefresh()}</button>
           <button class="iconButton" data-panel="settings" type="button" aria-label="设置">${iconSettings()}</button>
         </div>
@@ -313,6 +662,7 @@ function render() {
 
       ${state.conflict ? conflictBanner() : ""}
       ${workspaceView(note, headings)}
+      ${state.mode === "reader" && note && !state.panel ? readerQuickMenuView() : ""}
       ${state.toast ? `<div class="toast">${escapeHtml(state.toast)}</div>` : ""}
       ${state.panel ? panelView(note, headings) : ""}
     </div>
@@ -329,21 +679,34 @@ function workspaceView(note, headings) {
 
 function listView() {
   const visibleNotes = filteredNotes();
+  const totalCharacters = visibleNotes.reduce((sum, note) => sum + note.content.length, 0);
   return `
     <main class="noteListView">
+      <section class="libraryHero">
+        <div class="heroEyebrow"><span></span>${greetingLabel()}</div>
+        <h1>把散乱的想法，<br />收进一页纸里。</h1>
+        <p>${visibleNotes.length} 篇笔记 · ${formatCharacterCount(totalCharacters)} 字符</p>
+        <button class="heroNewButton" data-action="new" type="button">
+          ${iconPlus()}<span>写一篇新笔记</span>${lucideIcon(ChevronRight)}
+        </button>
+      </section>
+
+      <label class="mobileSearch">
+        ${lucideIcon(Search)}
+        <input class="noteSearchInput" type="search" value="${escapeHtml(state.searchQuery)}" placeholder="搜索标题或正文" autocomplete="off" />
+      </label>
+
       <div class="sectionHeader">
         <div>
-          <h1>笔记</h1>
-          <p>${visibleNotes.length} 篇本机笔记</p>
+          <span class="sectionKicker">LIBRARY</span>
+          <h2>${state.searchQuery ? "搜索结果" : "最近记录"}</h2>
         </div>
-        <button class="roundButton" data-action="new" type="button" aria-label="新建">${iconPlus()}</button>
+        <button class="roundButton" data-action="new" type="button" aria-label="新建笔记">${iconPlus()}</button>
       </div>
-      <label class="mobileSearch">
-        <span>搜索</span>
-        <input class="noteSearchInput" type="search" value="${escapeHtml(state.searchQuery)}" placeholder="标题或正文" autocomplete="off" />
-      </label>
       <div class="noteList">
-        ${visibleNotes.map((note) => noteListItem(note)).join("")}
+        ${visibleNotes.length
+          ? visibleNotes.map((note, index) => noteListItem(note, index)).join("")
+          : emptyLibraryView()}
       </div>
     </main>
   `;
@@ -358,39 +721,62 @@ function filteredNotes() {
   });
 }
 
-function noteListItem(note) {
+function noteListItem(note, index = 0) {
   const preview = note.content.replace(/[#>*_`\-[\]()]/g, " ").replace(/\s+/g, " ").trim().slice(0, 92);
+  const tone = noteTone(note);
   return `
-    <button class="noteRow ${note.id === state.selectedId ? "active" : ""}" data-note-id="${note.id}" type="button">
-      <strong>${escapeHtml(note.title)}</strong>
-      <span>${escapeHtml(preview || "空白笔记")}</span>
-      <small>${formatDate(note.updated_at)} · ${syncLabel(note)}</small>
+    <button class="noteRow ${note.id === state.selectedId ? "active" : ""}" style="--note-index:${index}; --note-tone:${tone}" data-note-id="${note.id}" type="button">
+      <span class="noteGlyph">${lucideIcon(FileText)}</span>
+      <span class="noteRowContent">
+        <strong>${escapeHtml(note.title)}</strong>
+        <span>${escapeHtml(preview || "这还是一页安静的空白。")}</span>
+        <small><span>${formatDate(note.updated_at)}</span><i></i><span>${readingTime(note)} 分钟阅读</span></small>
+      </span>
+      <span class="noteRowAside">
+        <span class="miniSync ${note.syncState || ""}">${syncLabel(note)}</span>
+        ${lucideIcon(ChevronRight)}
+      </span>
     </button>
   `;
 }
 
 function readerView(note, headings) {
   if (!note) return listView();
+  const documentState = documentViewState(note);
+  const isLongDocument = note.content.length >= longNoteThreshold;
   return `
     <main class="readerView">
       <section class="readerHeader">
-        <button class="ghostButton" data-action="list" type="button">${iconList()} 笔记</button>
+        <button class="backButton" data-action="list" type="button">${iconList()}<span>所有笔记</span></button>
         <div class="readerActions">
-          <button class="ghostButton" data-panel="outline" type="button">${iconOutline()} 目录</button>
-          <button class="primaryButton compact" data-action="edit" type="button">${iconEdit()} 编辑</button>
+          <button class="iconButton paperButton" data-panel="outline" type="button" aria-label="目录">${iconOutline()}</button>
+          <button class="primaryButton compact" data-action="edit" type="button">${iconEdit()}<span>编辑</span></button>
         </div>
       </section>
-      <article class="document">
-        ${markdownDocumentToHtml(note.content)}
+      <section class="documentMeta">
+        <span class="metaLabel">CURRENT NOTE</span>
+        <div>
+          <span>${lucideIcon(Clock3)}${formatDate(note.updated_at)}</span>
+          <span>${lucideIcon(FileText)}${readingTime(note)} 分钟阅读</span>
+        </div>
+      </section>
+      <article class="document ${isLongDocument ? "longDocument" : ""} ${documentState.pending ? "documentPending" : ""}" data-render-key="${escapeHtml(documentState.key)}" aria-busy="${documentState.pending}">
+        ${documentState.html}
       </article>
-      <nav class="bottomNav">
-        <button data-action="list" type="button">${iconList()}<span>笔记</span></button>
-        <button data-panel="ai" type="button">${iconSpark()}<span>AI</span></button>
-        <button data-panel="outline" type="button">${iconOutline()}<span>目录</span></button>
-        <button data-action="edit" type="button">${iconEdit()}<span>编辑</span></button>
-      </nav>
-      ${headings.length ? "" : `<p class="emptyHint">用 #、## 或 ### 写标题后，这里会生成目录。</p>`}
+      ${headings.length ? "" : `<p class="emptyHint">${lucideIcon(TableOfContents)}用 #、## 或 ### 写标题后，这里会生成目录。</p>`}
     </main>
+  `;
+}
+
+function readerQuickMenuView() {
+  return `
+    <nav class="readerQuickMenu ${state.quickMenuOpen ? "isVisible" : ""}" aria-label="阅读快捷菜单" aria-hidden="${state.quickMenuOpen ? "false" : "true"}" ${state.quickMenuOpen ? "" : "inert"}>
+      <button data-action="list" type="button">${iconList()}<span>笔记</span></button>
+      <button data-panel="outline" type="button">${iconOutline()}<span>目录</span></button>
+      <button class="readerTopButton" data-reader-action="top" type="button">${iconTop()}<span>顶部</span></button>
+      <button class="readerAiButton" data-panel="ai" type="button">${iconSpark()}<span>AI</span></button>
+      <button data-action="edit" type="button">${iconEdit()}<span>编辑</span></button>
+    </nav>
   `;
 }
 
@@ -398,11 +784,18 @@ function editorView(note) {
   return `
     <main class="editorView">
       <div class="editBar">
-        <button class="ghostButton" data-action="cancelEdit" type="button">取消</button>
-        <strong>${escapeHtml(note?.title || "未命名笔记")}</strong>
-        <button class="primaryButton compact" data-action="save" type="button">保存</button>
+        <button class="backButton" data-action="cancelEdit" type="button">${lucideIcon(X)}<span>取消</span></button>
+        <div class="editTitle">
+          <small>正在编辑</small>
+          <strong>${escapeHtml(note?.title || "未命名笔记")}</strong>
+        </div>
+        <button class="saveButton" data-action="save" type="button">${lucideIcon(Save)}<span>保存</span></button>
       </div>
-      <textarea class="mobileEditor" spellcheck="false" aria-label="Markdown 编辑区">${escapeHtml(state.editorDraft)}</textarea>
+      <div class="editorPaper">
+        <div class="editorLineNumbers" aria-hidden="true">01<br />02<br />03<br />04<br />05<br />06<br />07<br />08</div>
+        <textarea class="mobileEditor" spellcheck="false" aria-label="Markdown 编辑区" placeholder="# 从一个标题开始…">${escapeHtml(state.editorDraft)}</textarea>
+      </div>
+      <div class="editorHint"><span>${lucideIcon(Zap)}支持 Markdown</span><span>${state.editorDraft.length} 个字符</span></div>
     </main>
   `;
 }
@@ -415,13 +808,17 @@ function panelView(note, headings) {
   }[state.panel];
 
   return `
-    <div class="sheetBackdrop" data-action="closePanel">
+    <div class="sheetBackdrop">
       <aside class="bottomSheet" role="dialog" aria-label="${title}">
+        <div class="sheetHandle" aria-hidden="true"></div>
         <header class="sheetHeader">
-          <strong>${title}</strong>
+          <div>
+            <span>${state.panel === "ai" ? "MAKE IT CLEARER" : state.panel === "outline" ? "ON THIS PAGE" : "YOUR SPACE"}</span>
+            <strong>${title}</strong>
+          </div>
           <button class="iconButton" data-action="closePanel" type="button" aria-label="关闭">${iconClose()}</button>
         </header>
-        ${state.panel === "settings" ? settingsPanel() : ""}
+        ${state.panel === "settings" ? settingsPanel(note) : ""}
         ${state.panel === "outline" ? outlinePanel(headings) : ""}
         ${state.panel === "ai" ? aiPanel(note) : ""}
       </aside>
@@ -429,11 +826,11 @@ function panelView(note, headings) {
   `;
 }
 
-function settingsPanel() {
+function settingsPanel(note) {
   return `
     ${settingsForm()}
     <form class="stackForm" data-form="aiSettings">
-      <h2>AI 设置</h2>
+      <div class="formTitle"><span>${lucideIcon(Bot)}</span><div><h2>AI 助手</h2><p>选择模型与服务地址</p></div></div>
       <label>
         <span>服务</span>
         <select name="provider">
@@ -454,29 +851,54 @@ function settingsPanel() {
         <span>API Key</span>
         <input name="apiKey" type="password" value="${escapeHtml(state.aiSettings.apiKey)}" autocomplete="off" />
       </label>
-      <button class="primaryButton" type="submit">保存 AI 设置</button>
+      <button class="primaryButton fullWidth" type="submit">${lucideIcon(Check)}保存 AI 设置</button>
     </form>
+    ${note ? `<section class="dangerZone"><div><strong>删除当前笔记</strong><span>这个操作无法撤销</span></div><button class="dangerIconButton" data-action="delete" type="button" aria-label="删除当前笔记">${lucideIcon(Trash2)}</button></section>` : ""}
   `;
 }
 
 function settingsForm() {
+  const github = state.githubSettings;
   return `
     <form class="stackForm" data-form="settings">
-      <h2>同步</h2>
-      <p class="formHint">手机端现在由 App 自己管理笔记。与桌面资料库的手动同步会在后续版本支持。</p>
-      <button class="primaryButton" type="submit">检查同步状态</button>
-      ${state.syncMessage ? `<p class="formHint">${escapeHtml(state.syncMessage)}</p>` : ""}
+      <div class="formTitle"><span>${lucideIcon(Cloud)}</span><div><h2>GitHub 同步</h2><p>让手机与电脑保持一致</p></div></div>
+      <p class="formHint">Android 会使用系统安全存储；浏览器调试时 Token 仅保留在当前标签会话。发生冲突时会让你选择保留哪一版。</p>
+      <label>
+        <span>GitHub 用户名</span>
+        <input name="owner" value="${escapeHtml(github.owner)}" autocomplete="username" placeholder="octocat" />
+      </label>
+      <label>
+        <span>仓库名</span>
+        <input name="repo" value="${escapeHtml(github.repo)}" autocomplete="off" placeholder="marknote-notes" />
+      </label>
+      <label>
+        <span>分支</span>
+        <input name="branch" value="${escapeHtml(github.branch || "main")}" autocomplete="off" />
+      </label>
+      <label>
+        <span>远端文件夹</span>
+        <input name="remoteFolder" value="${escapeHtml(github.remoteFolder || "notes")}" autocomplete="off" />
+      </label>
+      <label>
+        <span>Fine-grained Token</span>
+        <input name="token" type="password" value="" autocomplete="new-password" placeholder="${state.githubTokenConfigured ? "已安全保存；留空不修改" : "github_pat_…"}" />
+      </label>
+      <button class="primaryButton fullWidth" type="submit">${lucideIcon(GitBranch)}保存同步设置</button>
+      ${state.githubTokenConfigured ? `<button class="ghostButton" data-action="signOut" type="button">清除 GitHub Token</button>` : ""}
+      ${state.syncMessage ? `<p class="syncMessage"><i></i>${escapeHtml(state.syncMessage)}</p>` : ""}
     </form>
   `;
 }
 
 function outlinePanel(headings) {
-  if (!headings.length) return `<p class="emptyHint">当前笔记还没有标题。</p>`;
+  if (!headings.length) return `<div class="panelEmpty">${lucideIcon(TableOfContents)}<strong>还没有目录</strong><p>在笔记里加入 # 标题，目录会自动出现。</p></div>`;
   return `
     <div class="outlineList">
-      ${headings.map((heading) => `
-        <button class="outlineItem level${heading.level}" data-heading-id="${heading.id}" type="button">
-          ${escapeHtml(heading.text)}
+      ${headings.map((heading, index) => `
+        <button class="outlineItem level${heading.level}" style="--outline-index:${index}" data-heading-id="${heading.id}" type="button">
+          <span>${String(index + 1).padStart(2, "0")}</span>
+          <strong>${escapeHtml(heading.text)}</strong>
+          ${lucideIcon(ChevronRight)}
         </button>
       `).join("")}
     </div>
@@ -485,52 +907,152 @@ function outlinePanel(headings) {
 
 function aiPanel(note) {
   return `
+    <div class="aiIntro">
+      <span>${lucideIcon(Sparkles)}</span>
+      <div><strong>和这篇笔记一起思考</strong><p>不会修改原文，确认后再放入编辑器。</p></div>
+    </div>
     <div class="aiQuickActions">
-      <button data-ai-action="summary" type="button">总结</button>
-      <button data-ai-action="polish" type="button">润色</button>
-      <button data-ai-action="continue" type="button">续写</button>
+      <button data-ai-action="summary" type="button"><span>${lucideIcon(FileText)}</span><strong>总结</strong><small>提炼重点</small></button>
+      <button data-ai-action="polish" type="button"><span>${lucideIcon(WandSparkles)}</span><strong>润色</strong><small>清晰表达</small></button>
+      <button data-ai-action="continue" type="button"><span>${lucideIcon(Zap)}</span><strong>续写</strong><small>延续思路</small></button>
     </div>
     <label class="aiComposer">
-      <span>自定义要求</span>
-      <textarea rows="4" class="aiPrompt">${escapeHtml(state.aiPrompt)}</textarea>
+      <span>还可以直接告诉 AI</span>
+      <textarea rows="4" class="aiPrompt" placeholder="例如：把这篇笔记整理成三个行动项">${escapeHtml(state.aiPrompt)}</textarea>
     </label>
-    <button class="primaryButton" data-ai-action="custom" type="button">发送给 AI</button>
+    <button class="primaryButton fullWidth aiSubmit" data-ai-action="custom" type="button">${lucideIcon(Sparkles)}开始处理</button>
     <div class="aiResult">
-      ${state.aiLoading ? `<p>AI 正在思考...</p>` : ""}
-      ${state.aiResult ? `<pre>${escapeHtml(state.aiResult)}</pre><button class="primaryButton" data-action="applyAi" type="button">放到编辑器</button>` : ""}
+      ${state.aiLoading ? `<div class="aiThinking"><i></i><i></i><i></i><span>AI 正在整理思路</span></div>` : ""}
+      ${state.aiResult ? `<pre>${escapeHtml(state.aiResult)}</pre><button class="primaryButton fullWidth" data-action="applyAi" type="button">${lucideIcon(Check)}放到编辑器</button>` : ""}
       ${!note ? `<p>先选择一篇笔记，再使用 AI。</p>` : ""}
     </div>
   `;
 }
 
 function conflictBanner() {
+  const conflict = state.conflict || {};
+  const deletingLocal = conflict.reason === "local-deleted-remote-changed";
+  const deletingRemote = conflict.reason === "remote-deleted-local-changed";
+  const description = deletingLocal
+    ? "手机删除了这篇笔记，但 GitHub 版本又被修改。"
+    : deletingRemote
+      ? "GitHub 删除了这篇笔记，但手机版本又被修改。"
+      : "手机和 GitHub 都修改了这篇笔记。";
+  const localLabel = deletingLocal ? "保留手机删除" : deletingRemote ? "恢复手机版" : "保留手机版";
+  const remoteLabel = deletingLocal ? "恢复 GitHub 版" : deletingRemote ? "保留 GitHub 删除" : "保留 GitHub 版";
   return `
     <div class="conflictBanner">
       <strong>发现同步冲突</strong>
-      <span>这篇笔记在电脑和手机上都改过。</span>
-      <button data-conflict="local" type="button">保留本机</button>
-      <button data-conflict="remote" type="button">使用电脑</button>
+      <span>${escapeHtml(conflict.path || "一篇笔记")}</span>
+      <span>${description}</span>
+      <button data-conflict="local" type="button">${localLabel}</button>
+      <button data-conflict="remote" type="button">${remoteLabel}</button>
+      <button data-conflict="both" type="button">两个都保留</button>
     </div>
   `;
+}
+
+function scheduleReaderQuickMenuClose() {
+  window.clearTimeout(readerQuickMenuTimer);
+  readerQuickMenuTimer = window.setTimeout(closeReaderQuickMenu, 3800);
+}
+
+function setReaderQuickMenuVisible(visible) {
+  state.quickMenuOpen = Boolean(visible);
+  const menu = app.querySelector(".readerQuickMenu");
+  if (!menu) {
+    state.quickMenuOpen = false;
+    window.clearTimeout(readerQuickMenuTimer);
+    return;
+  }
+
+  menu.classList.toggle("isVisible", state.quickMenuOpen);
+  menu.setAttribute("aria-hidden", state.quickMenuOpen ? "false" : "true");
+  menu.inert = !state.quickMenuOpen;
+  if (state.quickMenuOpen) {
+    scheduleReaderQuickMenuClose();
+  } else {
+    window.clearTimeout(readerQuickMenuTimer);
+  }
+}
+
+function closeReaderQuickMenu() {
+  setReaderQuickMenuVisible(false);
+}
+
+function toggleReaderQuickMenu() {
+  setReaderQuickMenuVisible(!state.quickMenuOpen);
+}
+
+function scrollReaderToTop() {
+  closeReaderQuickMenu();
+  state.readerScrollPositions.set(state.selectedId, 0);
+  const behavior = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth";
+  (document.scrollingElement || document.documentElement).scrollTo({ top: 0, behavior });
+}
+
+function bindReaderQuickMenuEvents() {
+  const reader = app.querySelector(".document");
+  const menu = app.querySelector(".readerQuickMenu");
+  if (!reader || !menu) return;
+
+  let tapStart = null;
+  const ignoredTarget = "a, button, input, textarea, select, summary, label, [contenteditable], [role='button'], pre, code, table, .katex, .katex-display, iframe, img, video, audio";
+
+  reader.addEventListener("pointerdown", (event) => {
+    if (!event.isPrimary || event.button !== 0 || event.target.closest(ignoredTarget)) {
+      tapStart = null;
+      return;
+    }
+    tapStart = {
+      x: event.clientX,
+      y: event.clientY,
+      scrollTop: currentWindowScrollTop(),
+      time: event.timeStamp
+    };
+  }, { passive: true });
+
+  reader.addEventListener("pointercancel", () => {
+    tapStart = null;
+  }, { passive: true });
+
+  reader.addEventListener("pointerup", (event) => {
+    if (!tapStart || !event.isPrimary) return;
+    const start = tapStart;
+    tapStart = null;
+    const moved = Math.hypot(event.clientX - start.x, event.clientY - start.y);
+    const scrolled = Math.abs(currentWindowScrollTop() - start.scrollTop);
+    const held = event.timeStamp - start.time;
+    const hasSelection = Boolean(window.getSelection()?.toString().trim());
+    if (moved > 12 || scrolled > 4 || held > 450 || hasSelection || event.target.closest(ignoredTarget)) return;
+    toggleReaderQuickMenu();
+  }, { passive: true });
+
+  menu.addEventListener("focusin", () => window.clearTimeout(readerQuickMenuTimer));
+  menu.addEventListener("focusout", () => {
+    if (state.quickMenuOpen) scheduleReaderQuickMenuClose();
+  });
 }
 
 function bindEvents() {
   app.querySelectorAll("[data-action]").forEach((node) => {
     node.addEventListener("click", (event) => {
       const action = event.currentTarget.dataset.action;
-      if (action === "home" || action === "list") setMode("list");
+      if (action === "home") toggleHomeMode();
+      if (action === "list") setMode("list");
       if (action === "new") createNote();
       if (action === "edit") setMode("editor");
       if (action === "cancelEdit") setMode("reader");
       if (action === "save") saveDraft();
       if (action === "delete") deleteSelectedNote();
       if (action === "closePanel") {
+        closeReaderQuickMenu();
         state.panel = "";
         render();
       }
       if (action === "signOut") signOut();
       if (action === "refresh") {
-        showToast("手动同步后续支持");
+        runGitHubSync();
       }
       if (action === "applyAi") applyAiResult();
     });
@@ -538,8 +1060,15 @@ function bindEvents() {
 
   app.querySelectorAll("[data-panel]").forEach((node) => {
     node.addEventListener("click", (event) => {
+      closeReaderQuickMenu();
       state.panel = event.currentTarget.dataset.panel;
       render();
+    });
+  });
+
+  app.querySelectorAll("[data-reader-action]").forEach((node) => {
+    node.addEventListener("click", () => {
+      if (node.dataset.readerAction === "top") scrollReaderToTop();
     });
   });
 
@@ -569,8 +1098,12 @@ function bindEvents() {
   const noteSearchInput = app.querySelector(".noteSearchInput");
   if (noteSearchInput) {
     noteSearchInput.addEventListener("input", (event) => {
+      const caret = event.target.selectionStart;
       state.searchQuery = event.target.value;
       render();
+      const nextInput = app.querySelector(".noteSearchInput");
+      nextInput?.focus();
+      if (Number.isInteger(caret)) nextInput?.setSelectionRange(caret, caret);
     });
   }
 
@@ -599,6 +1132,8 @@ function bindEvents() {
       render();
     }
   });
+
+  bindReaderQuickMenuEvents();
 }
 
 function formatDate(value) {
@@ -611,34 +1146,73 @@ function formatDate(value) {
   }).format(new Date(value));
 }
 
+function greetingLabel() {
+  const hour = new Date().getHours();
+  if (hour < 6) return "夜深了，慢慢写";
+  if (hour < 12) return "早上好，今天想记什么";
+  if (hour < 18) return "下午好，留住这一刻";
+  return "晚上好，把一天收好";
+}
+
+function formatCharacterCount(count) {
+  if (count < 1000) return String(count);
+  return `${(count / 1000).toFixed(count < 10000 ? 1 : 0)}k`;
+}
+
+function readingTime(note) {
+  const count = String(note?.content || "").replace(/\s+/g, "").length;
+  return Math.max(1, Math.ceil(count / 500));
+}
+
+function noteTone(note) {
+  const seed = String(note?.id || note?.title || "marknote");
+  const total = [...seed].reduce((sum, character) => sum + character.codePointAt(0), 0);
+  return [222, 258, 18, 165][total % 4];
+}
+
+function emptyLibraryView() {
+  return `
+    <div class="emptyLibrary">
+      <span>${lucideIcon(Search)}</span>
+      <strong>没有找到相符的笔记</strong>
+      <p>换一个关键词，或者开始写一篇新的。</p>
+      <button class="ghostButton" data-action="new" type="button">${iconPlus()}新建笔记</button>
+    </div>
+  `;
+}
+
 function iconSettings() {
-  return `<svg viewBox="0 0 24 24"><path d="M12 8.5a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 0-7Z"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1-2.1 2.1-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.5v.2h-3v-.2a1.7 1.7 0 0 0-1-1.5 1.7 1.7 0 0 0-1.9.3l-.1.1-2.1-2.1.1-.1A1.7 1.7 0 0 0 7 15a1.7 1.7 0 0 0-1.5-1H5.3v-3h.2A1.7 1.7 0 0 0 7 10a1.7 1.7 0 0 0-.3-1.9l-.1-.1 2.1-2.1.1.1a1.7 1.7 0 0 0 1.9.3 1.7 1.7 0 0 0 1-1.5v-.2h3v.2a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.9-.3l.1-.1L19.8 8l-.1.1A1.7 1.7 0 0 0 19.4 10a1.7 1.7 0 0 0 1.5 1h.2v3h-.2a1.7 1.7 0 0 0-1.5 1Z"/></svg>`;
+  return lucideIcon(Settings);
 }
 
 function iconPlus() {
-  return `<svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>`;
+  return lucideIcon(Plus);
 }
 
 function iconList() {
-  return `<svg viewBox="0 0 24 24"><path d="M8 6h12M8 12h12M8 18h12M4 6h.1M4 12h.1M4 18h.1"/></svg>`;
+  return lucideIcon(List);
 }
 
 function iconEdit() {
-  return `<svg viewBox="0 0 24 24"><path d="M4 20h4l10.5-10.5a2.1 2.1 0 0 0-3-3L5 17v3Z"/><path d="m14 7 3 3"/></svg>`;
+  return lucideIcon(NotebookPen);
 }
 
 function iconOutline() {
-  return `<svg viewBox="0 0 24 24"><path d="M5 5h14M5 12h10M5 19h14"/></svg>`;
+  return lucideIcon(TableOfContents);
+}
+
+function iconTop() {
+  return lucideIcon(ArrowUpToLine);
 }
 
 function iconSpark() {
-  return `<svg viewBox="0 0 24 24"><path d="M12 3 9.8 9.8 3 12l6.8 2.2L12 21l2.2-6.8L21 12l-6.8-2.2L12 3Z"/></svg>`;
+  return lucideIcon(Sparkles);
 }
 
 function iconClose() {
-  return `<svg viewBox="0 0 24 24"><path d="m6 6 12 12M18 6 6 18"/></svg>`;
+  return lucideIcon(X);
 }
 
 function iconRefresh() {
-  return `<svg viewBox="0 0 24 24"><path d="M4 12a8 8 0 0 1 13.3-6.2L21 2v7h-7l3.3-2.8A6 6 0 0 0 6 12H4Z"/><path d="M20 12a8 8 0 0 1-13.3 6.2L3 22v-7h7l-3.3 2.8A6 6 0 0 0 18 12h2Z"/></svg>`;
+  return lucideIcon(RefreshCw, state.syncing ? "spinning" : "");
 }

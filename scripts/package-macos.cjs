@@ -17,7 +17,7 @@ function copyRequiredBuildAssets() {
   const buildOutput = path.join(resourcesApp, "build");
   fs.mkdirSync(buildOutput, { recursive: true });
 
-  for (const name of ["icon.icns", "icon.ico", "icon.png"]) {
+  for (const name of ["icon.icns", "icon.ico", "icon.png", "orbit-paper.jpg"]) {
     const source = path.join(root, "build", name);
     if (fs.existsSync(source)) {
       fs.cpSync(source, path.join(buildOutput, name));
@@ -74,7 +74,7 @@ childProcess.execFileSync("ditto", [electronApp, outputApp], { stdio: "inherit" 
 fs.rmSync(resourcesApp, { recursive: true, force: true });
 fs.mkdirSync(resourcesApp, { recursive: true });
 
-for (const name of ["app", "electron", "plugins", "README.md", "package.json"]) {
+for (const name of ["app", "electron", "plugins", "shared", "README.md", "package.json"]) {
   fs.cpSync(path.join(root, name), path.join(resourcesApp, name), { recursive: true });
 }
 copyRequiredBuildAssets();

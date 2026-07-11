@@ -43,7 +43,7 @@ test("MCP server initializes and serves library tools over stdio", async () => {
 
     const called = await request(3, "tools/call", { name: "read_note", arguments: { path: "hello.md" } });
     assert.equal(called.result.isError, undefined);
-    assert.equal(called.result.structuredContent.note.title, "Hello");
+    assert.equal(called.result.structuredContent.note.title, "hello");
     assert.match(called.result.structuredContent.note.content, /connection works/);
   } finally {
     child.kill();

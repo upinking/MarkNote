@@ -10,7 +10,7 @@ export function createEmptyNote() {
   return {
     id: `local-${crypto.randomUUID()}`,
     title: "未命名笔记",
-    content: "# 未命名笔记\n\n从这里开始写。",
+    content: "# 未命名笔记\n\n",
     created_at: now,
     updated_at: now,
     deleted_at: null,

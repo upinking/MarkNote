@@ -55,7 +55,7 @@ test("creates, reads, searches, updates and archives notes", async () => {
   await withLibrary(async (root) => {
     const created = await createNote(root, "课程/物理", "# 洛伦兹力\n\n带电粒子会受到磁场作用。");
     assert.equal(created.path, "课程/物理.md");
-    assert.equal(created.title, "洛伦兹力");
+    assert.equal(created.title, "物理");
 
     const listed = await listNotes(root);
     assert.deepEqual(listed.map((note) => note.path), ["课程/物理.md"]);

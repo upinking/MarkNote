@@ -32,6 +32,9 @@ const translations = {
     renameInvalid: "请输入有效文件名",
     settings: "设置",
     outline: "目录",
+    outlineCollapseAll: "折叠全部目录",
+    outlineExpandAll: "展开全部目录",
+    backToTop: "回到顶部",
     language: "界面语言",
     theme: "主题",
     themeLight: "晨光",
@@ -40,6 +43,7 @@ const translations = {
     themeForest: "松林",
     themeOcean: "海盐",
     themeRose: "蔷薇",
+    themeOrbit: "星轨",
     lineWrap: "自动换行",
     taskBracketCompat: "自动转换待办框",
     tableBlock: "表格",
@@ -205,6 +209,9 @@ const translations = {
     renameInvalid: "Enter a valid file name",
     settings: "Settings",
     outline: "Outline",
+    outlineCollapseAll: "Collapse all headings",
+    outlineExpandAll: "Expand all headings",
+    backToTop: "Back to top",
     language: "Language",
     theme: "Theme",
     themeLight: "Daylight",
@@ -213,6 +220,7 @@ const translations = {
     themeForest: "Forest",
     themeOcean: "Ocean",
     themeRose: "Rose",
+    themeOrbit: "Orbit",
     lineWrap: "Line wrap",
     taskBracketCompat: "Auto-convert task boxes",
     tableBlock: "Table",
@@ -378,6 +386,9 @@ const translations = {
     renameInvalid: "有効なファイル名を入力してください",
     settings: "設定",
     outline: "目次",
+    outlineCollapseAll: "すべて折りたたむ",
+    outlineExpandAll: "すべて展開",
+    backToTop: "トップへ戻る",
     language: "表示言語",
     theme: "テーマ",
     themeLight: "昼光",
@@ -386,6 +397,7 @@ const translations = {
     themeForest: "森",
     themeOcean: "海",
     themeRose: "ローズ",
+    themeOrbit: "星の軌道",
     lineWrap: "自動折り返し",
     taskBracketCompat: "タスク記号を自動変換",
     tableBlock: "表",
@@ -529,13 +541,15 @@ const aiSettingsKey = "marknote.aiSettings.v1";
 const cloudSettingsKey = "marknote.cloudSettings.v1";
 const librarySettingsKey = "marknote.library.v1";
 const libraryMetadataKey = "marknote.library.metadata.v1";
+const readingProgressKey = "marknote.readingProgress.v1";
+const maxReadingProgressEntries = 240;
 const libraryArchiveFolder = "归档";
 const libraryArchiveFilter = "__marknote_archive__";
 let pendingLibraryExternalChange = null;
 let libraryExternalChangeTimer = 0;
 const platform = window.marknote?.platform || "browser";
 const isMac = platform === "darwin" || navigator.platform.toLowerCase().includes("mac");
-const themes = ["light", "dark", "paper", "forest", "ocean", "rose"];
+const themes = ["light", "dark", "paper", "forest", "ocean", "rose", "orbit"];
 const viewModes = ["wysiwyg", "edit", "preview", "reading"];
 const languages = ["zh", "en", "ja"];
 const aiProviders = ["openai", "deepseek", "mimo"];
@@ -596,8 +610,10 @@ const defaultAiSettings = {
 };
 
 const defaultCloudSettings = {
-  lastUrl: "",
-  lastCode: ""
+  owner: "",
+  repo: "",
+  branch: "main",
+  remoteFolder: "notes"
 };
 
 const state = {
@@ -635,8 +651,8 @@ const state = {
   aiMessages: [],
   aiSettings: loadAiSettings(),
   cloudSettings: loadCloudSettings(),
-  cloudSession: null,
-  cloudStatus: "同步功能后续支持",
+  cloudSession: { configured: false, persistent: true, syncing: false },
+  cloudStatus: "尚未配置 GitHub 同步",
   codexPlugin: {
     checking: false,
     installing: false,
@@ -659,8 +675,11 @@ const state = {
   syncingPreviewScroll: false,
   previewManualUntil: 0,
   activeHeadingScrollFrame: 0,
+  readingProgress: loadReadingProgress(),
+  readingProgressTimer: 0,
   outlineAnimationTimer: 0,
-  paneResize: null
+  paneResize: null,
+  aiInputComposing: false
 };
 
 const elements = {
@@ -671,6 +690,7 @@ const elements = {
   libraryPane: document.querySelector("#libraryPane"),
   outlinePane: document.querySelector("#outlinePane"),
   outlineList: document.querySelector("#outlineList"),
+  toggleAllOutlineButton: document.querySelector("#toggleAllOutlineButton"),
   headingCount: document.querySelector("#headingCount"),
   fileName: document.querySelector("#fileName"),
   fileSwitcher: document.querySelector("#fileSwitcher"),
@@ -722,6 +742,13 @@ const elements = {
   aiApiKeyInput: document.querySelector("#aiApiKeyInput"),
   cloudUploadButton: document.querySelector("#cloudUploadButton"),
   cloudStatus: document.querySelector("#cloudStatus"),
+  githubOwnerInput: document.querySelector("#githubOwnerInput"),
+  githubRepoInput: document.querySelector("#githubRepoInput"),
+  githubBranchInput: document.querySelector("#githubBranchInput"),
+  githubFolderInput: document.querySelector("#githubFolderInput"),
+  githubTokenInput: document.querySelector("#githubTokenInput"),
+  githubSaveButton: document.querySelector("#githubSaveButton"),
+  githubClearTokenButton: document.querySelector("#githubClearTokenButton"),
   toggleLibraryPaneButton: document.querySelector("#toggleLibraryPaneButton"),
   toggleOutlinePaneButton: document.querySelector("#toggleOutlinePaneButton"),
   libraryResizeHandle: document.querySelector("#libraryResizeHandle"),
@@ -767,6 +794,7 @@ const elements = {
   helpButton: document.querySelector("#helpButton"),
   toast: document.querySelector("#toast"),
   browserFileInput: document.querySelector("#browserFileInput"),
+  backToTopButton: document.querySelector("#backToTopButton"),
   editorContextMenu: document.querySelector("#editorContextMenu")
 };
 
@@ -837,6 +865,90 @@ function saveDraft() {
 
 function clearDraft() {
   localStorage.removeItem(draftKey);
+}
+
+function loadReadingProgress() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(readingProgressKey) || "{}");
+    if (!saved || typeof saved !== "object" || Array.isArray(saved)) return {};
+    return Object.fromEntries(Object.entries(saved).filter(([, value]) => value && typeof value === "object"));
+  } catch {
+    return {};
+  }
+}
+
+function saveReadingProgress() {
+  const entries = Object.entries(state.readingProgress)
+    .filter(([, value]) => Number.isFinite(value?.updatedAt))
+    .sort(([, a], [, b]) => b.updatedAt - a.updatedAt)
+    .slice(0, maxReadingProgressEntries);
+  state.readingProgress = Object.fromEntries(entries);
+  localStorage.setItem(readingProgressKey, JSON.stringify(state.readingProgress));
+}
+
+function normalizeProgressKeyPart(value) {
+  const normalized = String(value || "").replace(/\\/g, "/").replace(/\/+$/, "");
+  return platform === "win32" ? normalized.toLowerCase() : normalized;
+}
+
+function libraryReadingProgressKey(rootPath, noteId) {
+  if (!rootPath || !noteId) return "";
+  return `library:${normalizeProgressKeyPart(rootPath)}:${normalizeProgressKeyPart(noteId)}`;
+}
+
+function currentReadingProgressKey() {
+  if (state.isHelpOpen) return "";
+  if (state.library.rootPath && state.library.selectedId) {
+    return libraryReadingProgressKey(state.library.rootPath, state.library.selectedId);
+  }
+  if (state.filePath) return `file:${normalizeProgressKeyPart(state.filePath)}`;
+  return "";
+}
+
+function remapReadingProgressPath(previousPath, nextPath) {
+  const previousKey = libraryReadingProgressKey(state.library.rootPath, previousPath);
+  const nextKey = libraryReadingProgressKey(state.library.rootPath, nextPath);
+  if (!previousKey || !nextKey || previousKey === nextKey || !state.readingProgress[previousKey]) return;
+  state.readingProgress[nextKey] = {
+    ...state.readingProgress[previousKey],
+    updatedAt: Date.now()
+  };
+  delete state.readingProgress[previousKey];
+  saveReadingProgress();
+}
+
+function forgetReadingProgressPath(noteId) {
+  const key = libraryReadingProgressKey(state.library.rootPath, noteId);
+  if (!key || !state.readingProgress[key]) return;
+  delete state.readingProgress[key];
+  saveReadingProgress();
+}
+
+function saveCurrentReadingProgress() {
+  const key = currentReadingProgressKey();
+  if (!key) return;
+
+  const mode = state.preferences.viewMode;
+  const entry = {
+    mode,
+    progress: readingProgressForMode(mode),
+    activeHeadingId: state.activeHeadingId,
+    updatedAt: Date.now()
+  };
+
+  if (mode === "edit") {
+    entry.selectionStart = elements.editor.selectionStart;
+    entry.selectionEnd = elements.editor.selectionEnd;
+    entry.selectionDirection = elements.editor.selectionDirection;
+  }
+
+  state.readingProgress[key] = entry;
+  saveReadingProgress();
+}
+
+function scheduleReadingProgressSave() {
+  window.clearTimeout(state.readingProgressTimer);
+  state.readingProgressTimer = window.setTimeout(saveCurrentReadingProgress, 300);
 }
 
 function scheduleDraftSave() {
@@ -1483,6 +1595,7 @@ function forgetRecentLibraryNote(noteId) {
 
 function remapLibraryMetadataPath(previousPath, nextPath) {
   if (!previousPath || !nextPath || previousPath === nextPath) return;
+  remapReadingProgressPath(previousPath, nextPath);
   const metadata = currentLibraryMetadata();
   const pinnedPaths = new Set(metadata.pinnedPaths);
   if (pinnedPaths.delete(previousPath)) pinnedPaths.add(nextPath);
@@ -1574,6 +1687,7 @@ function setLibrarySnapshot(snapshot = {}) {
 async function chooseLibrary() {
   if (state.isHelpOpen) closeHelp();
   if (!(await confirmIfDirty())) return false;
+  saveCurrentReadingProgress();
 
   const result = await window.marknote?.chooseLibrary?.();
   if (!result?.rootPath) return false;
@@ -1585,7 +1699,7 @@ async function chooseLibrary() {
   state.library.selectedId = filteredLibraryNotes()[0]?.id || "";
   saveLibrarySettings();
   if (state.library.selectedId) {
-    await selectLibraryNote(state.library.selectedId, { skipDirtyCheck: true });
+    await selectLibraryNote(state.library.selectedId, { skipDirtyCheck: true, skipProgressSave: true });
   } else {
     resetEditorForEmptyLibrary();
   }
@@ -1604,6 +1718,7 @@ async function refreshLibrary(options = {}) {
     return false;
   }
 
+  if (!options.skipProgressSave) saveCurrentReadingProgress();
   state.library.loading = true;
   renderLibrary();
   try {
@@ -1618,7 +1733,8 @@ async function refreshLibrary(options = {}) {
         await selectLibraryNote(state.library.selectedId, {
           skipDirtyCheck: true,
           quiet: true,
-          preserveDraft: options.preserveDraft
+          preserveDraft: options.preserveDraft,
+          skipProgressSave: true
         });
       } else {
         resetEditorForEmptyLibrary({ preserveDraft: options.preserveDraft });
@@ -1635,6 +1751,7 @@ async function refreshLibrary(options = {}) {
 async function selectLibraryNote(noteId, options = {}) {
   if (!noteId) return false;
   if (!options.skipDirtyCheck && !(await confirmIfDirty())) return false;
+  if (!options.skipProgressSave) saveCurrentReadingProgress();
 
   const note = await window.marknote?.readLibraryNote?.({
     rootPath: state.library.rootPath,
@@ -1657,6 +1774,7 @@ async function selectLibraryNote(noteId, options = {}) {
   if (!options.preserveDraft) clearDraft();
   saveLibrarySettings();
   render();
+  restoreCurrentReadingProgressSoon();
   if (!options.quiet) playContentFade();
   return true;
 }
@@ -1791,7 +1909,7 @@ async function handleLibraryExternalChange(payload = {}) {
   } else {
     state.library.selectedId = filteredLibraryNotes()[0]?.id || "";
     if (state.library.selectedId) {
-      await selectLibraryNote(state.library.selectedId, { skipDirtyCheck: true, quiet: true });
+      await selectLibraryNote(state.library.selectedId, { skipDirtyCheck: true, quiet: true, skipProgressSave: true });
     } else {
       resetEditorForEmptyLibrary();
       render();
@@ -1834,7 +1952,7 @@ async function createLibraryNote() {
     ? `${selectedFolder}/${t("untitledHeading")}.md`
     : `${t("untitledHeading")}.md`;
   const relativePath = uniqueClientRelativePath(preferredPath);
-  const content = `# ${t("untitledHeading")}\n\n${t("startWriting")}\n`;
+  const content = `# ${t("untitledHeading")}\n\n`;
   const note = await window.marknote?.saveLibraryNote?.({
     rootPath: state.library.rootPath,
     relativePath,
@@ -1940,8 +2058,16 @@ function libraryFileNameFromTitle(title) {
 }
 
 async function initCloudSession() {
-  state.cloudSession = null;
-  state.cloudStatus = "同步功能后续支持";
+  try {
+    const status = await window.marknote?.githubTokenStatus?.();
+    state.cloudSession = { configured: Boolean(status?.configured), persistent: status?.persistent !== false, syncing: false };
+    state.cloudStatus = status?.configured
+      ? "GitHub Token 已安全保存，可以开始同步。"
+      : "请填写仓库信息和 Fine-grained Token。";
+  } catch (error) {
+    state.cloudSession = { configured: false, persistent: false, syncing: false };
+    state.cloudStatus = cleanIpcError(error);
+  }
   renderCloudSettings();
 }
 
@@ -1958,12 +2084,134 @@ function titleFromMarkdown(markdown) {
 }
 
 async function uploadCurrentNoteToCloud() {
-  showToast("手动同步后续支持");
+  if (state.cloudSession?.syncing) return;
+  if (!state.library.rootPath) {
+    state.cloudStatus = "请先在左侧选择一个桌面资料库。";
+    renderCloudSettings();
+    return;
+  }
+
+  try {
+    await saveGitHubConfiguration({ quiet: true });
+    if (state.markdown !== state.savedMarkdown && state.library.selectedId) {
+      const saved = await saveLibraryNote();
+      if (!saved) return;
+    }
+    state.cloudSession = { ...state.cloudSession, syncing: true };
+    state.cloudStatus = "正在比较电脑和 GitHub 上的笔记…";
+    renderCloudSettings();
+    const result = await window.marknote?.syncGitHubLibrary?.({
+      rootPath: state.library.rootPath,
+      settings: state.cloudSettings
+    });
+    if (!result) throw new Error("桌面端没有返回同步结果。");
+
+    const selectedId = state.library.selectedId;
+    setLibrarySnapshot(result.snapshot || {});
+    if (selectedId && libraryNoteById(selectedId)) {
+      await selectLibraryNote(selectedId, { skipDirtyCheck: true, quiet: true });
+    } else {
+      state.library.selectedId = filteredLibraryNotes()[0]?.id || "";
+      if (state.library.selectedId) {
+        await selectLibraryNote(state.library.selectedId, { skipDirtyCheck: true, quiet: true, skipProgressSave: true });
+      } else {
+        resetEditorForEmptyLibrary();
+      }
+    }
+    saveLibrarySettings();
+    state.cloudStatus = syncSummaryText(result.summary);
+    showToast("GitHub 同步完成");
+  } catch (error) {
+    state.cloudStatus = cleanIpcError(error);
+    showToast("GitHub 同步失败");
+  } finally {
+    state.cloudSession = { ...state.cloudSession, syncing: false };
+    render();
+  }
 }
 
 function renderCloudSettings() {
   if (!elements.cloudStatus) return;
-  elements.cloudStatus.textContent = state.cloudStatus || "同步功能后续支持";
+  const assignWhenIdle = (input, value) => {
+    if (input && document.activeElement !== input) input.value = value || "";
+  };
+  assignWhenIdle(elements.githubOwnerInput, state.cloudSettings.owner);
+  assignWhenIdle(elements.githubRepoInput, state.cloudSettings.repo);
+  assignWhenIdle(elements.githubBranchInput, state.cloudSettings.branch || "main");
+  assignWhenIdle(elements.githubFolderInput, state.cloudSettings.remoteFolder || "notes");
+  if (elements.githubTokenInput && document.activeElement !== elements.githubTokenInput) {
+    elements.githubTokenInput.value = "";
+    elements.githubTokenInput.placeholder = state.cloudSession?.configured ? "已安全保存；留空不修改" : "github_pat_…";
+  }
+  const syncing = Boolean(state.cloudSession?.syncing);
+  elements.githubSaveButton.disabled = syncing;
+  elements.githubClearTokenButton.disabled = syncing || !state.cloudSession?.configured;
+  elements.cloudUploadButton.disabled = syncing;
+  elements.cloudUploadButton.querySelector("span").textContent = syncing ? "正在同步…" : "立即同步整个资料库";
+  elements.cloudStatus.textContent = state.cloudStatus || "尚未配置 GitHub 同步";
+}
+
+function githubSettingsFromForm() {
+  return {
+    owner: elements.githubOwnerInput?.value.trim() || "",
+    repo: elements.githubRepoInput?.value.trim() || "",
+    branch: elements.githubBranchInput?.value.trim() || "main",
+    remoteFolder: elements.githubFolderInput?.value.trim() || "notes"
+  };
+}
+
+async function saveGitHubConfiguration(options = {}) {
+  state.cloudSettings = githubSettingsFromForm();
+  saveCloudSettings();
+  const token = elements.githubTokenInput?.value.trim() || "";
+  if (token) {
+    const result = await window.marknote?.saveGitHubToken?.(token);
+    state.cloudSession = {
+      ...state.cloudSession,
+      configured: true,
+      persistent: result?.persisted !== false
+    };
+    elements.githubTokenInput.value = "";
+  }
+  if (!state.cloudSession?.configured) throw new Error("请填写并保存 GitHub Token。");
+  if (!state.cloudSettings.owner || !state.cloudSettings.repo) throw new Error("请填写 GitHub 用户名和仓库名。");
+  if (!options.quiet) {
+    state.cloudStatus = state.cloudSession.persistent
+      ? "GitHub 设置已保存，Token 存放在系统钥匙串中。"
+      : "设置已保存；系统安全存储不可用，Token 仅在本次运行中有效。";
+    showToast("GitHub 设置已保存");
+    renderCloudSettings();
+  }
+  return true;
+}
+
+async function clearGitHubConfigurationToken() {
+  try {
+    await window.marknote?.clearGitHubToken?.();
+    state.cloudSession = { ...state.cloudSession, configured: false };
+    state.cloudStatus = "GitHub Token 已清除。";
+    renderCloudSettings();
+  } catch (error) {
+    state.cloudStatus = cleanIpcError(error);
+    renderCloudSettings();
+  }
+}
+
+function syncSummaryText(summary = {}) {
+  const parts = [
+    `上传 ${summary.uploaded || 0} 篇`,
+    `下载 ${summary.downloaded || 0} 篇`,
+    `电脑删除 ${summary.deletedLocal || 0} 篇`,
+    `GitHub 删除 ${summary.deletedRemote || 0} 篇`
+  ];
+  const conflicts = Array.isArray(summary.conflicts) ? summary.conflicts.length : 0;
+  return `同步完成：${parts.join("，")}。${conflicts ? `已安全保留 ${conflicts} 个冲突版本。` : "没有发现冲突。"}`;
+}
+
+function cleanIpcError(error) {
+  return String(error?.message || error || "未知错误")
+    .replace(/^Error invoking remote method '[^']+': Error:\s*/, "")
+    .replace(/^Error:\s*/, "");
 }
 
 function currentAiProvider() {
@@ -3111,6 +3359,8 @@ class LinewiseMarkdownEditor {
     this.editingMathStart = null;
     this.undoStack = [];
     this.redoStack = [];
+    this.isComposing = false;
+    this.compositionJustEnded = false;
     this.selectionScrollGuard = {
       active: false,
       frame: 0,
@@ -3844,6 +4094,17 @@ class LinewiseMarkdownEditor {
             wasFocused: document.activeElement === row
           });
         });
+        row.addEventListener("compositionstart", () => {
+          this.isComposing = true;
+          this.compositionJustEnded = false;
+        });
+        row.addEventListener("compositionend", () => {
+          this.isComposing = false;
+          this.compositionJustEnded = true;
+          window.setTimeout(() => {
+            this.compositionJustEnded = false;
+          }, 0);
+        });
         row.addEventListener("keydown", (event) => this.handleKeydown(event, row, index));
         row.addEventListener("paste", (event) => this.handlePaste(event, row, index));
       } else {
@@ -3929,6 +4190,7 @@ class LinewiseMarkdownEditor {
 
   handleKeydown(event, row, lineIndex) {
     if (event.key === "Enter") {
+      if (this.isComposing || this.compositionJustEnded || isImeComposingEvent(event)) return;
       event.preventDefault();
       const offset = selectionOffsetWithin(row);
       const text = row.textContent;
@@ -4004,6 +4266,10 @@ class LinewiseMarkdownEditor {
       caretOffset: replacement[replacement.length - 1].length - after.length
     });
   }
+}
+
+function isImeComposingEvent(event) {
+  return Boolean(event.isComposing || event.keyCode === 229 || event.which === 229);
 }
 
 function bindTextareaSelectionScrollGuard(textarea) {
@@ -4143,6 +4409,7 @@ function syncWysiwygSoon() {
 function renderOutline() {
   elements.outlineList.innerHTML = "";
   elements.headingCount.textContent = `${state.headings.length} ${t("headings")}`;
+  renderOutlineActionButton();
 
   if (state.headings.length === 0) {
     const empty = document.createElement("div");
@@ -4181,6 +4448,7 @@ function renderOutline() {
   });
 
   keepActiveOutlineItemVisible();
+  renderLucideIcons();
 }
 
 function setActiveHeadingId(headingId) {
@@ -4315,6 +4583,7 @@ function restoreReadingProgressSoon(mode, progress) {
   const restore = () => {
     applyReadingProgressToMode(mode, progress);
     scheduleActiveHeadingFromScroll();
+    updateBackToTopButton();
   };
 
   window.requestAnimationFrame(() => {
@@ -4322,6 +4591,55 @@ function restoreReadingProgressSoon(mode, progress) {
     window.requestAnimationFrame(restore);
   });
   window.setTimeout(restore, 260);
+}
+
+function restoreCurrentReadingProgressSoon() {
+  const key = currentReadingProgressKey();
+  const saved = key ? state.readingProgress[key] : null;
+  if (!saved || !Number.isFinite(saved.progress)) {
+    updateBackToTopButton();
+    return;
+  }
+
+  if (saved.activeHeadingId && state.headings.some((heading) => heading.id === saved.activeHeadingId)) {
+    state.activeHeadingId = saved.activeHeadingId;
+    updateOutlineActiveState();
+    updateStatus();
+  }
+
+  const mode = state.preferences.viewMode;
+  restoreReadingProgressSoon(mode, saved.progress);
+
+  if (mode === "edit" && Number.isFinite(saved.selectionStart)) {
+    const restoreSelection = () => {
+      const start = Math.max(0, Math.min(elements.editor.value.length, saved.selectionStart));
+      const end = Math.max(start, Math.min(elements.editor.value.length, saved.selectionEnd ?? start));
+      elements.editor.setSelectionRange(start, end, saved.selectionDirection || "none");
+    };
+    window.requestAnimationFrame(restoreSelection);
+    window.setTimeout(restoreSelection, 0);
+  }
+}
+
+function updateBackToTopButton() {
+  const button = elements.backToTopButton;
+  if (!button) return;
+
+  const container = scrollContainerForMode(state.preferences.viewMode);
+  const canScroll = container.scrollHeight - container.clientHeight > 160;
+  button.hidden = !(canScroll && container.scrollTop > 240);
+}
+
+function scrollCurrentDocumentToTop() {
+  const container = scrollContainerForMode(state.preferences.viewMode);
+  container.scrollTo({ top: 0, behavior: "smooth" });
+  state.activeHeadingId = state.headings[0]?.id || "";
+  updateOutlineActiveState();
+  updateStatus();
+  window.setTimeout(() => {
+    updateBackToTopButton();
+    saveCurrentReadingProgress();
+  }, 260);
 }
 
 function renderRecentFiles() {
@@ -4753,6 +5071,7 @@ async function moveLibraryNoteToFolder(noteId, destinationFolder) {
   if (movingCurrentNote && state.markdown !== state.savedMarkdown && !(await confirmIfDirty())) {
     return false;
   }
+  if (movingCurrentNote) saveCurrentReadingProgress();
 
   const fileName = libraryPathFileName(note.relativePath);
   const preferredPath = folder ? `${folder}/${fileName}` : fileName;
@@ -4781,7 +5100,7 @@ async function moveLibraryNoteToFolder(noteId, destinationFolder) {
     const visibleTarget = filteredLibraryNotes().some((item) => item.id === movedId);
     const nextSelection = visibleTarget ? movedId : state.library.selectedId;
     if (nextSelection) {
-      await selectLibraryNote(nextSelection, { skipDirtyCheck: true, quiet: true });
+      await selectLibraryNote(nextSelection, { skipDirtyCheck: true, quiet: true, skipProgressSave: true });
     } else {
       resetEditorForEmptyLibrary();
       saveLibrarySettings();
@@ -4862,6 +5181,7 @@ async function deleteLibraryNote(noteId) {
     : window.confirm(`${payload.message}\n\n${payload.detail}`) ? "delete" : "cancel";
   if (choice !== "delete") return false;
 
+  if (deletingCurrentNote) saveCurrentReadingProgress();
   const result = await window.marknote.deleteLibraryNote({
     rootPath: state.library.rootPath,
     relativePath: note.id
@@ -4870,12 +5190,13 @@ async function deleteLibraryNote(noteId) {
 
   setLibraryNotePinned(note.id, false);
   forgetRecentLibraryNote(note.id);
+  forgetReadingProgressPath(note.id);
   state.library.notes = state.library.notes.filter((item) => item.id !== note.id);
   if (deletingCurrentNote) {
     state.library.selectedId = filteredLibraryNotes()[0]?.id || "";
     resetEditorForEmptyLibrary();
     if (state.library.selectedId) {
-      await selectLibraryNote(state.library.selectedId, { skipDirtyCheck: true, quiet: true });
+      await selectLibraryNote(state.library.selectedId, { skipDirtyCheck: true, quiet: true, skipProgressSave: true });
     } else {
       saveLibrarySettings();
       render();
@@ -4950,6 +5271,7 @@ async function renameCurrentFile(newName) {
     if (renamingCurrentNote && state.markdown !== state.savedMarkdown && !(await confirmIfDirty())) {
       return;
     }
+    if (renamingCurrentNote) saveCurrentReadingProgress();
 
     const folder = targetNote.folder ? `${targetNote.folder}/` : "";
     const requestedName = libraryPathFileName(trimmedName);
@@ -4977,7 +5299,7 @@ async function renameCurrentFile(newName) {
     closeRenameDialog();
     await refreshLibrary({ selectCurrent: false, skipDirtyCheck: true });
     if (renamingCurrentNote) {
-      await selectLibraryNote(renamedId, { skipDirtyCheck: true, quiet: true });
+      await selectLibraryNote(renamedId, { skipDirtyCheck: true, quiet: true, skipProgressSave: true });
     } else {
       render();
     }
@@ -5046,6 +5368,7 @@ async function switchToRecentFile(file) {
   }
 
   if (!(await confirmIfDirty())) return;
+  saveCurrentReadingProgress();
 
   try {
     if (!window.marknote?.openFilePath) {
@@ -5066,6 +5389,7 @@ async function switchToRecentFile(file) {
     rememberRecentFile(opened);
     clearDraft();
     render();
+    restoreCurrentReadingProgressSoon();
     playContentFade();
   } catch {
     forgetRecentFile(file.filePath);
@@ -5116,12 +5440,52 @@ function outlineGlyph(index, hasChildren, isCollapsed) {
   return hasFollowingSibling(index) ? "├─" : "└─";
 }
 
+function collapsibleHeadingIds() {
+  return state.headings
+    .map((heading, index) => headingHasChildren(index) ? heading.id : "")
+    .filter(Boolean);
+}
+
+function allCollapsibleHeadingsCollapsed() {
+  const ids = collapsibleHeadingIds();
+  return ids.length > 0 && ids.every((headingId) => state.collapsedHeadings.has(headingId));
+}
+
+function renderOutlineActionButton() {
+  const button = elements.toggleAllOutlineButton;
+  if (!button) return;
+
+  const ids = collapsibleHeadingIds();
+  const allCollapsed = allCollapsibleHeadingsCollapsed();
+  const label = allCollapsed ? t("outlineExpandAll") : t("outlineCollapseAll");
+  button.disabled = ids.length === 0;
+  button.title = label;
+  button.setAttribute("aria-label", label);
+  button.innerHTML = `<i data-lucide="${allCollapsed ? "list-chevrons-up-down" : "list-collapse"}" aria-hidden="true"></i>`;
+}
+
 function toggleHeadingCollapse(headingId) {
   if (state.collapsedHeadings.has(headingId)) {
     state.collapsedHeadings.delete(headingId);
   } else {
     state.collapsedHeadings.add(headingId);
   }
+  playOutlineAnimation();
+  renderOutline();
+}
+
+function toggleAllHeadingCollapse() {
+  const ids = collapsibleHeadingIds();
+  if (ids.length === 0) return;
+
+  const shouldCollapse = !allCollapsibleHeadingsCollapsed();
+  ids.forEach((headingId) => {
+    if (shouldCollapse) {
+      state.collapsedHeadings.add(headingId);
+    } else {
+      state.collapsedHeadings.delete(headingId);
+    }
+  });
   playOutlineAnimation();
   renderOutline();
 }
@@ -5180,6 +5544,8 @@ function applyLanguage() {
   elements.viewModeLabel.textContent = t(`view${capitalize(state.preferences.viewMode)}`);
   elements.languageSelect.value = state.preferences.language;
   elements.themeSelect.value = state.preferences.theme;
+  elements.backToTopButton?.setAttribute("aria-label", t("backToTop"));
+  elements.backToTopButton?.setAttribute("title", t("backToTop"));
 }
 
 function applyPaneWidths() {
@@ -5248,7 +5614,9 @@ function renderSettingsPage() {
       : page === "codex-plugin"
         ? t("codexPluginSettings")
       : t("settings");
-  elements.cloudSettingsSummary.textContent = "后续支持";
+  elements.cloudSettingsSummary.textContent = state.cloudSettings.owner && state.cloudSettings.repo
+    ? `${state.cloudSettings.owner}/${state.cloudSettings.repo}`
+    : "未配置";
   elements.aiSettingsSummary.textContent = currentAiProvider();
   renderCodexPluginSettings();
 }
@@ -5353,6 +5721,7 @@ function render() {
   applyPreferences();
   renderAiPanel();
   renderLucideIcons();
+  updateBackToTopButton();
 }
 
 function setPreference(key, value) {
@@ -5500,6 +5869,7 @@ async function setViewMode(mode) {
   const nextMode = viewModes.includes(mode) ? mode : "preview";
   if (previousMode === nextMode) return;
   const readingProgress = readingProgressForMode(previousMode);
+  saveCurrentReadingProgress();
 
   if (previousMode === "wysiwyg") {
     await syncStateFromWysiwyg();
@@ -5516,6 +5886,7 @@ async function setViewMode(mode) {
       state.wysiwyg?.focus();
     }
     restoreReadingProgressSoon(nextMode, readingProgress);
+    scheduleReadingProgressSave();
   });
 }
 
@@ -5594,6 +5965,7 @@ async function openStandaloneFile() {
     closeHelp();
   }
   if (!(await confirmIfDirty())) return false;
+  saveCurrentReadingProgress();
 
   if (window.marknote?.openFile) {
     const file = await window.marknote.openFile();
@@ -5609,6 +5981,7 @@ async function openStandaloneFile() {
     rememberRecentFile(file);
     clearDraft();
     render();
+    restoreCurrentReadingProgressSoon();
     playContentFade();
     return true;
   }
@@ -5777,8 +6150,9 @@ async function newNote() {
     return createLibraryNote();
   }
   if (!(await confirmIfDirty())) return;
+  saveCurrentReadingProgress();
 
-  state.markdown = `# ${t("untitledHeading")}\n\n${t("startWriting")}\n`;
+  state.markdown = `# ${t("untitledHeading")}\n\n`;
   state.savedMarkdown = "";
   state.filePath = "";
   state.fileName = t("untitled");
@@ -6054,6 +6428,8 @@ function bindEvents() {
 
   elements.editor.addEventListener("scroll", () => {
     syncPreviewScroll();
+    scheduleReadingProgressSave();
+    updateBackToTopButton();
     if (state.preferences.viewMode === "edit") {
       scheduleActiveHeadingFromScroll();
     }
@@ -6063,18 +6439,23 @@ function bindEvents() {
   elements.previewPane.addEventListener("scroll", () => {
     if (!state.syncingPreviewScroll) {
       state.previewManualUntil = Date.now() + 1200;
+      scheduleReadingProgressSave();
     }
+    updateBackToTopButton();
     if (state.preferences.viewMode === "preview" || state.preferences.viewMode === "reading") {
       scheduleActiveHeadingFromScroll();
     }
   });
   elements.wysiwygEditor.addEventListener("scroll", () => {
+    scheduleReadingProgressSave();
+    updateBackToTopButton();
     if (state.preferences.viewMode === "wysiwyg") {
       scheduleActiveHeadingFromScroll();
     }
   });
 
   elements.newButton.addEventListener("click", newNote);
+  elements.backToTopButton?.addEventListener("click", scrollCurrentDocumentToTop);
   elements.openButton.addEventListener("click", openFile);
   elements.saveButton.addEventListener("click", saveFile);
   elements.closeHelpButton.addEventListener("click", closeHelp);
@@ -6175,6 +6556,14 @@ function bindEvents() {
     event.preventDefault();
     await addBrowserAiFiles(files);
   });
+  elements.aiInput.addEventListener("compositionstart", () => {
+    state.aiInputComposing = true;
+  });
+  elements.aiInput.addEventListener("compositionend", () => {
+    window.setTimeout(() => {
+      state.aiInputComposing = false;
+    }, 0);
+  });
   elements.aiForm.addEventListener("submit", (event) => {
     event.preventDefault();
     sendAiMessage(elements.aiInput.value);
@@ -6182,11 +6571,10 @@ function bindEvents() {
   elements.aiInput.addEventListener("keydown", (event) => {
     if (event.key !== "Enter") return;
     if (event.shiftKey) return;
+    if (state.aiInputComposing || isImeComposingEvent(event)) return;
 
-    if (!event.isComposing) {
-      event.preventDefault();
-      sendAiMessage(elements.aiInput.value);
-    }
+    event.preventDefault();
+    sendAiMessage(elements.aiInput.value);
   });
   elements.aiPane.querySelectorAll("[data-ai-prompt]").forEach((button) => {
     button.addEventListener("click", () => {
@@ -6205,13 +6593,20 @@ function bindEvents() {
       discardAiDraft(discardButton.dataset.aiDiscard);
     }
   });
-  elements.settingsToggle.addEventListener("click", () => {
+  elements.settingsToggle.addEventListener("click", (event) => {
+    event.stopPropagation();
     state.settingsOpen = !state.settingsOpen;
     if (state.settingsOpen) {
       state.settingsPage = "main";
+      closeRecentPanel();
+      closeFileContextMenu();
+      closeEditorContextMenu();
+      closeLibraryContextMenu();
     }
     render();
   });
+  elements.settingsPanel.addEventListener("pointerdown", (event) => event.stopPropagation());
+  elements.settingsPanel.addEventListener("click", (event) => event.stopPropagation());
   elements.settingsBackButton.addEventListener("click", () => openSettingsPage("main"));
   elements.cloudSettingsNavButton.addEventListener("click", () => openSettingsPage("cloud"));
   elements.aiSettingsNavButton.addEventListener("click", () => openSettingsPage("ai"));
@@ -6236,8 +6631,14 @@ function bindEvents() {
     }
   });
   elements.cloudUploadButton?.addEventListener("click", uploadCurrentNoteToCloud);
+  elements.githubSaveButton?.addEventListener("click", () => saveGitHubConfiguration().catch((error) => {
+    state.cloudStatus = cleanIpcError(error);
+    renderCloudSettings();
+  }));
+  elements.githubClearTokenButton?.addEventListener("click", clearGitHubConfigurationToken);
   elements.toggleLibraryPaneButton.addEventListener("click", () => toggleSidebarPane("library"));
   elements.toggleOutlinePaneButton.addEventListener("click", () => toggleSidebarPane("outline"));
+  elements.toggleAllOutlineButton?.addEventListener("click", toggleAllHeadingCollapse);
   elements.libraryResizeHandle.addEventListener("pointerdown", (event) => {
     closeLibraryContextMenu();
     startPaneResize(event, "library");
@@ -6413,6 +6814,7 @@ function bindEvents() {
     if (state.isHelpOpen) {
       closeHelp();
     }
+    saveCurrentReadingProgress();
     if (await confirmIfDirty()) {
       window.marknote.closeWindow();
     }
@@ -6428,7 +6830,7 @@ async function boot() {
   bindEvents();
   render();
   if (state.library.rootPath) {
-    await refreshLibrary({ selectCurrent: true, skipDirtyCheck: true, preserveDraft: true });
+    await refreshLibrary({ selectCurrent: true, skipDirtyCheck: true, preserveDraft: true, skipProgressSave: true });
   }
   await initCloudSession();
   await initWysiwygEditor();
@@ -6436,6 +6838,7 @@ async function boot() {
   if (state.preferences.viewMode === "wysiwyg") {
     await syncWysiwygFromState();
   }
+  restoreCurrentReadingProgressSoon();
 }
 
 boot();

@@ -115,6 +115,25 @@
   --task-check-hover: #f5d7e0;
 }
 
+:root[data-theme="orbit"] {
+  color-scheme: light;
+  --bg: #f3eee5;
+  --surface: #fffaf2;
+  --surface-strong: #f2f0f8;
+  --text: #17243d;
+  --muted: #66718a;
+  --border: #cbd2e1;
+  --border-soft: #dfe3ec;
+  --accent: #315fc5;
+  --accent-soft: #e3e9fb;
+  --accent-text: #294b9a;
+  --task-check-bg: #fffaf2;
+  --task-check-border: #8798ba;
+  --task-check-checked: #315fc5;
+  --task-check-mark: #ffffff;
+  --task-check-hover: #e3e9fb;
+}
+
 * {
   box-sizing: border-box;
 }
@@ -144,11 +163,20 @@ button {
 }
 
 .appShell {
+  --ai-pane-expanded-width: clamp(288px, 30vw, 460px);
   display: grid;
   grid-template-rows: 66px minmax(0, 1fr) 34px;
   height: 100vh;
   background: var(--bg);
   transition: background-color 220ms ease;
+}
+
+:root[data-theme="orbit"] .appShell {
+  background-color: var(--bg);
+  background-image: url("../build/orbit-paper.jpg");
+  background-position: center 18%;
+  background-size: cover;
+  background-repeat: no-repeat;
 }
 
 .toolbar {
@@ -762,10 +790,10 @@ button {
 .contextSubmenu::after {
   position: absolute;
   z-index: 0;
-  top: -10px;
-  left: 100%;
-  width: 224px;
-  height: 198px;
+  top: -18px;
+  left: 92%;
+  width: 252px;
+  height: 236px;
   content: "";
 }
 
@@ -796,7 +824,7 @@ button {
   position: absolute;
   z-index: 2;
   top: -6px;
-  left: calc(100% + 6px);
+  left: calc(100% + 2px);
   display: none;
   min-width: 190px;
   padding: 6px;
@@ -807,7 +835,7 @@ button {
 }
 
 .editorContextMenu.submenuLeft .contextSubmenuPanel {
-  right: calc(100% + 6px);
+  right: calc(100% + 2px);
   left: auto;
 }
 
@@ -870,7 +898,7 @@ button {
 }
 
 .workspace.aiMode {
-  --ai-pane-width: clamp(288px, 30vw, 460px);
+  --ai-pane-width: var(--ai-pane-expanded-width);
 }
 
 .workspace.aiMode:not(.libraryCollapsed) {
@@ -1559,7 +1587,7 @@ button {
   display: flex;
   align-items: center;
   justify-content: flex-start;
-  gap: 12px;
+  gap: 10px;
   box-sizing: border-box;
   width: 100%;
   min-width: 0;
@@ -1573,6 +1601,42 @@ button {
   transition:
     border-color 220ms ease,
     padding 420ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.outlineActionButton {
+  display: inline-grid;
+  flex: 0 0 auto;
+  width: 32px;
+  height: 32px;
+  place-items: center;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  padding: 0;
+  background: var(--surface-strong);
+  color: var(--muted);
+  cursor: pointer;
+  transition:
+    border-color 180ms ease,
+    color 180ms ease,
+    background-color 180ms ease,
+    transform 180ms ease,
+    opacity 180ms ease;
+}
+
+.outlineActionButton:hover:not(:disabled) {
+  border-color: var(--accent);
+  color: var(--accent-text);
+  transform: translateY(-1px);
+}
+
+.outlineActionButton:disabled {
+  cursor: default;
+  opacity: 0.42;
+}
+
+.outlineActionButton svg {
+  width: 17px;
+  height: 17px;
 }
 
 .paneHeader .paneTitleGroup {
@@ -1623,7 +1687,8 @@ button {
 }
 
 .workspace.outlineCollapsed .outlinePane .paneTitleGroup,
-.workspace.outlineCollapsed .outlineList {
+.workspace.outlineCollapsed .outlineList,
+.workspace.outlineCollapsed .outlineActionButton {
   pointer-events: none;
   visibility: hidden;
   opacity: 0;
@@ -2215,6 +2280,44 @@ button {
 
 .markdownEditor.wrapPulse {
   animation: wrapPulse 160ms ease-out;
+}
+
+.backToTopButton {
+  position: fixed;
+  right: 22px;
+  bottom: 48px;
+  z-index: 42;
+  display: inline-grid;
+  width: 40px;
+  height: 40px;
+  place-items: center;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--accent-text);
+  box-shadow: 0 12px 30px rgba(16, 24, 40, 0.18);
+  cursor: pointer;
+  transition:
+    right 420ms cubic-bezier(0.16, 1, 0.3, 1),
+    border-color 180ms ease,
+    color 180ms ease,
+    background-color 180ms ease,
+    transform 180ms ease;
+}
+
+.workspace.aiMode + .backToTopButton {
+  right: calc(var(--ai-pane-expanded-width) + 22px);
+}
+
+.backToTopButton:hover {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  transform: translateY(-2px);
+}
+
+.backToTopButton svg {
+  width: 19px;
+  height: 19px;
 }
 
 .previewPane {
@@ -3067,6 +3170,28 @@ button {
   transition: background-color 220ms ease, color 220ms ease;
 }
 
+/* “星轨”把水彩纸纹作为主题本身；其余主题继续使用原来的纯色面板。 */
+:root[data-theme="orbit"] .toolbar {
+  background: color-mix(in srgb, var(--surface) 84%, transparent);
+}
+
+:root[data-theme="orbit"] .libraryPane,
+:root[data-theme="orbit"] .outlinePane {
+  background: color-mix(in srgb, var(--surface) 82%, transparent);
+}
+
+:root[data-theme="orbit"] .editorPane,
+:root[data-theme="orbit"] .previewPane,
+:root[data-theme="orbit"] .aiPane,
+:root[data-theme="orbit"] .wysiwygEditor,
+:root[data-theme="orbit"] .markdownEditor {
+  background: color-mix(in srgb, var(--surface) 72%, transparent);
+}
+
+:root[data-theme="orbit"] .statusBar {
+  background: color-mix(in srgb, var(--surface) 88%, transparent);
+}
+
 .currentHeading {
   margin-left: auto;
   overflow: hidden;
@@ -3294,6 +3419,10 @@ button {
 }
 
 @media (max-width: 1100px) {
+  .appShell {
+    --ai-pane-expanded-width: clamp(288px, 30vw, 340px);
+  }
+
   .toolbar {
     gap: 10px;
   }
@@ -3316,10 +3445,6 @@ button {
 
   .workspace.previewHidden {
     grid-template-columns: var(--library-pane-width) var(--outline-pane-width) minmax(0, 1fr) var(--ai-pane-width);
-  }
-
-  .workspace.aiMode {
-    --ai-pane-width: clamp(288px, 30vw, 340px);
   }
 
   .workspace:not(.previewHidden):not(.readingMode):not(.aiMode) .previewPane {

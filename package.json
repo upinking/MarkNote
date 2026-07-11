@@ -26,6 +26,7 @@
       "build/**/*",
       "electron/**/*",
       "plugins/marknote/**/*",
+      "shared/**/*",
       "README.md",
       "package.json"
     ],

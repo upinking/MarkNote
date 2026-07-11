@@ -101,6 +101,7 @@
                 <option value="forest" data-i18n="themeForest">Forest</option>
                 <option value="ocean" data-i18n="themeOcean">Ocean</option>
                 <option value="rose" data-i18n="themeRose">Rose</option>
+                <option value="orbit" data-i18n="themeOrbit">Orbit</option>
               </select>
             </label>
             <label class="settingSwitch">
@@ -134,14 +135,37 @@
 
           <div class="settingsPage" id="cloudSettingsPage" hidden>
             <div class="syncPlaceholder">
-              <strong>手动同步后续支持</strong>
-              <span>当前版本先把桌面资料库和手机内部笔记库整理清楚。手机与桌面资料库之间的同步通道会单独设计。</span>
+              <strong>GitHub 手动同步</strong>
+            </div>
+            <label class="settingRow" for="githubOwnerInput">
+              <span>GitHub 用户名</span>
+              <input class="settingInput wide" id="githubOwnerInput" autocomplete="username" placeholder="octocat" />
+            </label>
+            <label class="settingRow" for="githubRepoInput">
+              <span>仓库名</span>
+              <input class="settingInput wide" id="githubRepoInput" autocomplete="off" placeholder="marknote-notes" />
+            </label>
+            <label class="settingRow" for="githubBranchInput">
+              <span>分支</span>
+              <input class="settingInput wide" id="githubBranchInput" autocomplete="off" placeholder="main" />
+            </label>
+            <label class="settingRow" for="githubFolderInput">
+              <span>远端文件夹</span>
+              <input class="settingInput wide" id="githubFolderInput" autocomplete="off" placeholder="notes" />
+            </label>
+            <label class="settingRow" for="githubTokenInput">
+              <span>Fine-grained Token</span>
+              <input class="settingInput wide" id="githubTokenInput" type="password" autocomplete="new-password" placeholder="未更改" />
+            </label>
+            <div class="settingButtonGrid">
+              <button class="miniSettingButton" id="githubSaveButton" type="button">保存设置</button>
+              <button class="miniSettingButton" id="githubClearTokenButton" type="button">清除 Token</button>
             </div>
             <button class="settingAction" id="cloudUploadButton" type="button">
-              <span>检查同步状态</span>
+              <span>立即同步整个资料库</span>
               <span class="settingActionIcon">↻</span>
             </button>
-            <div class="cloudStatus" id="cloudStatus">同步功能后续支持</div>
+            <div class="cloudStatus" id="cloudStatus" aria-live="polite">尚未配置 GitHub 同步</div>
           </div>
 
           <div class="settingsPage" id="aiSettingsPage" hidden>
@@ -228,6 +252,9 @@
               <span data-i18n="outline">Outline</span>
               <small id="headingCount">0 headings</small>
             </div>
+            <button class="outlineActionButton" id="toggleAllOutlineButton" type="button" aria-label="折叠全部目录" title="折叠全部目录">
+              <i data-lucide="list-collapse" aria-hidden="true"></i>
+            </button>
           </div>
           <nav class="outlineList" id="outlineList" aria-label="文章目录"></nav>
           <div class="paneResizeHandle" id="outlineResizeHandle" role="separator" aria-label="调整目录宽度" aria-orientation="vertical" tabindex="0"></div>
@@ -271,6 +298,10 @@
           </form>
         </aside>
       </main>
+
+      <button class="backToTopButton" id="backToTopButton" type="button" aria-label="回到顶部" title="回到顶部" hidden>
+        <i data-lucide="arrow-up-to-line" aria-hidden="true"></i>
+      </button>
 
       <footer class="statusBar">
         <span id="lineCount">0 lines</span>
