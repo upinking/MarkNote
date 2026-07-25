@@ -2332,7 +2332,7 @@ async function closeAiPanel() {
   state.aiClosing = true;
   render();
 
-  const duration = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ? 0 : 420;
+  const duration = 420;
   state.aiLayoutTimer = window.setTimeout(async () => {
     if (transitionId !== state.aiTransitionId) return;
 
