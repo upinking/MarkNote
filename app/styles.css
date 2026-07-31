@@ -1695,7 +1695,8 @@ button {
   transform: translateX(-10px) scale(0.98);
 }
 
-.workspace.outlineCollapsed .outlinePane .paneTitleGroup {
+.workspace.outlineCollapsed .outlinePane .paneTitleGroup,
+.workspace.outlineCollapsed .outlinePane .outlineActionButton {
   position: absolute;
   flex-basis: 0;
   width: 0;
