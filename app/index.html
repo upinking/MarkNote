@@ -127,6 +127,11 @@
               <small id="codexPluginSettingsSummary">未安装</small>
               <span class="settingsNavArrow">›</span>
             </button>
+            <button class="settingsNavButton" id="kimiPluginSettingsNavButton" type="button">
+              <span data-i18n="kimiPluginSettings">Kimi Code 插件</span>
+              <small id="kimiPluginSettingsSummary">未安装</small>
+              <span class="settingsNavArrow">›</span>
+            </button>
             <button class="settingAction" id="helpButton" data-i18n-title="helpTitle" title="打开使用说明">
               <span data-i18n="help">使用说明</span>
               <span class="settingActionIcon">↗</span>
@@ -203,6 +208,20 @@
               <span data-i18n="codexPluginOpen">在 Codex 中查看</span>
             </button>
             <div class="cloudStatus" id="codexPluginStatus" aria-live="polite"></div>
+          </div>
+
+          <div class="settingsPage" id="kimiPluginSettingsPage" hidden>
+            <div class="codexPluginIntro">
+              <strong data-i18n="kimiPluginTitle">连接 Kimi Code</strong>
+              <span data-i18n="kimiPluginDescription">安装 MarkNote 插件后，Kimi Code 可以搜索、读取并在你确认后修改本地笔记。</span>
+            </div>
+            <button class="settingAction" id="installKimiPluginButton" type="button">
+              <span>安装到 Kimi Code</span>
+            </button>
+            <button class="settingAction" id="openKimiPluginButton" type="button" hidden>
+              <span data-i18n="kimiPluginOpenFolder">打开插件文件夹</span>
+            </button>
+            <div class="cloudStatus" id="kimiPluginStatus" aria-live="polite"></div>
           </div>
         </div>
       </header>

@@ -1,4 +1,4 @@
-const { app, BrowserWindow, dialog, ipcMain, safeStorage, shell } = require("electron");
+const { app, BrowserWindow, clipboard, dialog, ipcMain, safeStorage, shell } = require("electron");
 const path = require("node:path");
 const fs = require("node:fs/promises");
 const {
@@ -21,13 +21,18 @@ const {
   getBundledPluginStatus,
   installBundledPlugin
 } = require("./codex-plugin.cjs");
+const {
+  exportKimiPlugin,
+  getKimiPluginStatus,
+  installKimiPlugin
+} = require("./kimi-plugin.cjs");
 
 let isQuitting = false;
 let activeLibraryRoot = "";
 let libraryWatcher = null;
 const appIconPath = path.join(__dirname, "../build/icon.png");
 
-function codexPluginOptions() {
+function pluginHostOptions() {
   return {
     appPath: app.getAppPath(),
     resourcesPath: process.resourcesPath,
@@ -323,20 +328,40 @@ async function showGitHubConflictDialog(parentWindow, conflict = {}) {
 }
 
 ipcMain.handle("codex-plugin:status", async () => {
-  return getBundledPluginStatus(codexPluginOptions());
+  return getBundledPluginStatus(pluginHostOptions());
 });
 
 ipcMain.handle("codex-plugin:install", async () => {
-  return installBundledPlugin(codexPluginOptions());
+  return installBundledPlugin(pluginHostOptions());
 });
 
 ipcMain.handle("codex-plugin:open", async () => {
-  const options = codexPluginOptions();
+  const options = pluginHostOptions();
   let status = await getBundledPluginStatus(options);
   if (!status.deeplink) {
     status = { ...status, ...await exportBundledPlugin(options) };
   }
   await shell.openExternal(status.deeplink);
+  return { ok: true };
+});
+
+ipcMain.handle("kimi-plugin:status", async () => {
+  return getKimiPluginStatus(pluginHostOptions());
+});
+
+ipcMain.handle("kimi-plugin:install", async () => {
+  const result = await installKimiPlugin(pluginHostOptions());
+  if (result?.installCommand) clipboard.writeText(result.installCommand);
+  return result;
+});
+
+ipcMain.handle("kimi-plugin:open-folder", async () => {
+  const options = pluginHostOptions();
+  let status = await getKimiPluginStatus(options);
+  if (!status.pluginPath) {
+    status = { ...status, ...await exportKimiPlugin(options) };
+  }
+  shell.showItemInFolder(status.pluginPath);
   return { ok: true };
 });
 

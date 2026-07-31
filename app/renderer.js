@@ -66,6 +66,19 @@ const translations = {
     codexPluginInstallSuccess: "MarkNote 插件已安装",
     codexPluginInstallFailed: "插件安装失败",
     codexPluginChecking: "检查中...",
+    kimiPluginSettings: "Kimi Code 插件",
+    kimiPluginTitle: "连接 Kimi Code",
+    kimiPluginDescription: "安装 MarkNote 插件后，Kimi Code 可以搜索、读取并在你确认后修改本地笔记。",
+    kimiPluginInstall: "安装到 Kimi Code",
+    kimiPluginReinstall: "重新安装插件",
+    kimiPluginInstalling: "正在安装...",
+    kimiPluginInstalled: "已安装",
+    kimiPluginNotInstalled: "未安装",
+    kimiPluginOpenFolder: "打开插件文件夹",
+    kimiPluginInstallSuccess: "插件已释放，安装命令已复制。请在 Kimi Code 中粘贴执行并确认信任提示，然后运行 /reload。",
+    kimiPluginCliMissing: "插件已释放，安装命令已复制。没有检测到 Kimi Code，请确认已安装。",
+    kimiPluginInstallFailed: "插件安装失败",
+    kimiPluginChecking: "检查中...",
     aiProvider: "服务",
     aiModel: "模型",
     aiBaseUrl: "Base URL",
@@ -243,6 +256,19 @@ const translations = {
     codexPluginInstallSuccess: "MarkNote plugin installed",
     codexPluginInstallFailed: "Plugin installation failed",
     codexPluginChecking: "Checking...",
+    kimiPluginSettings: "Kimi Code plugin",
+    kimiPluginTitle: "Connect Kimi Code",
+    kimiPluginDescription: "Install the MarkNote plugin so Kimi Code can search, read, and modify local notes after you confirm.",
+    kimiPluginInstall: "Install in Kimi Code",
+    kimiPluginReinstall: "Reinstall plugin",
+    kimiPluginInstalling: "Installing...",
+    kimiPluginInstalled: "Installed",
+    kimiPluginNotInstalled: "Not installed",
+    kimiPluginOpenFolder: "Open plugin folder",
+    kimiPluginInstallSuccess: "Plugin exported and the install command is copied. Paste it in Kimi Code, accept the trust prompt, then run /reload.",
+    kimiPluginCliMissing: "Plugin exported and the install command is copied, but Kimi Code was not detected. Make sure it is installed.",
+    kimiPluginInstallFailed: "Plugin installation failed",
+    kimiPluginChecking: "Checking...",
     aiProvider: "Provider",
     aiModel: "Model",
     aiBaseUrl: "Base URL",
@@ -420,6 +446,19 @@ const translations = {
     codexPluginInstallSuccess: "MarkNoteプラグインをインストールしました",
     codexPluginInstallFailed: "プラグインのインストールに失敗しました",
     codexPluginChecking: "確認中...",
+    kimiPluginSettings: "Kimi Codeプラグイン",
+    kimiPluginTitle: "Kimi Codeに接続",
+    kimiPluginDescription: "MarkNoteプラグインをインストールすると、確認後にKimi Codeがローカルノートを検索、閲覧、変更できます。",
+    kimiPluginInstall: "Kimi Codeにインストール",
+    kimiPluginReinstall: "プラグインを再インストール",
+    kimiPluginInstalling: "インストール中...",
+    kimiPluginInstalled: "インストール済み",
+    kimiPluginNotInstalled: "未インストール",
+    kimiPluginOpenFolder: "プラグインフォルダを開く",
+    kimiPluginInstallSuccess: "プラグインを書き出し、インストールコマンドをコピーしました。Kimi Codeに貼り付けて実行し、信頼の確認を承認してから /reload を実行してください。",
+    kimiPluginCliMissing: "プラグインを書き出し、コマンドをコピーしましたが、Kimi Codeが見つかりません。インストールされているか確認してください。",
+    kimiPluginInstallFailed: "プラグインのインストールに失敗しました",
+    kimiPluginChecking: "確認中...",
     aiProvider: "サービス",
     aiModel: "モデル",
     aiBaseUrl: "Base URL",
@@ -660,6 +699,13 @@ const state = {
     exported: false,
     message: ""
   },
+  kimiPlugin: {
+    checking: false,
+    installing: false,
+    installed: false,
+    exported: false,
+    message: ""
+  },
   library: loadLibrarySettings(),
   libraryMetadata: loadLibraryMetadata(),
   externalConflict: null,
@@ -787,6 +833,12 @@ const elements = {
   installCodexPluginButton: document.querySelector("#installCodexPluginButton"),
   openCodexPluginButton: document.querySelector("#openCodexPluginButton"),
   codexPluginStatus: document.querySelector("#codexPluginStatus"),
+  kimiPluginSettingsPage: document.querySelector("#kimiPluginSettingsPage"),
+  kimiPluginSettingsNavButton: document.querySelector("#kimiPluginSettingsNavButton"),
+  kimiPluginSettingsSummary: document.querySelector("#kimiPluginSettingsSummary"),
+  installKimiPluginButton: document.querySelector("#installKimiPluginButton"),
+  openKimiPluginButton: document.querySelector("#openKimiPluginButton"),
+  kimiPluginStatus: document.querySelector("#kimiPluginStatus"),
   languageSelect: document.querySelector("#languageSelect"),
   themeSelect: document.querySelector("#themeSelect"),
   wrapSetting: document.querySelector("#wrapSetting"),
@@ -5606,6 +5658,7 @@ function renderSettingsPage() {
   elements.cloudSettingsPage.hidden = page !== "cloud";
   elements.aiSettingsPage.hidden = page !== "ai";
   elements.codexPluginSettingsPage.hidden = page !== "codex-plugin";
+  elements.kimiPluginSettingsPage.hidden = page !== "kimi-plugin";
   elements.settingsBackButton.hidden = page === "main";
   elements.settingsTitle.textContent = page === "cloud"
     ? "同步"
@@ -5613,18 +5666,22 @@ function renderSettingsPage() {
       ? t("aiSettings")
       : page === "codex-plugin"
         ? t("codexPluginSettings")
+        : page === "kimi-plugin"
+          ? t("kimiPluginSettings")
       : t("settings");
   elements.cloudSettingsSummary.textContent = state.cloudSettings.owner && state.cloudSettings.repo
     ? `${state.cloudSettings.owner}/${state.cloudSettings.repo}`
     : "未配置";
   elements.aiSettingsSummary.textContent = currentAiProvider();
   renderCodexPluginSettings();
+  renderKimiPluginSettings();
 }
 
 function openSettingsPage(page) {
   state.settingsPage = page;
   render();
   if (page === "codex-plugin") refreshCodexPluginStatus();
+  if (page === "kimi-plugin") refreshKimiPluginStatus();
 }
 
 function renderCodexPluginSettings() {
@@ -5698,6 +5755,83 @@ async function openCodexPlugin() {
   } catch (error) {
     state.codexPlugin.message = error?.message || t("codexPluginInstallFailed");
     renderCodexPluginSettings();
+  }
+}
+
+function renderKimiPluginSettings() {
+  const plugin = state.kimiPlugin;
+  const summary = plugin.checking
+    ? t("kimiPluginChecking")
+    : plugin.installed
+      ? t("kimiPluginInstalled")
+      : t("kimiPluginNotInstalled");
+  elements.kimiPluginSettingsSummary.textContent = summary;
+  elements.installKimiPluginButton.disabled = plugin.installing;
+  elements.installKimiPluginButton.querySelector("span").textContent = plugin.installing
+    ? t("kimiPluginInstalling")
+    : plugin.installed
+      ? t("kimiPluginReinstall")
+      : t("kimiPluginInstall");
+  elements.openKimiPluginButton.hidden = !plugin.exported;
+  elements.kimiPluginStatus.textContent = plugin.message || "";
+}
+
+async function refreshKimiPluginStatus() {
+  if (state.kimiPlugin.checking || !window.marknote?.getKimiPluginStatus) return;
+  state.kimiPlugin.checking = true;
+  renderKimiPluginSettings();
+  try {
+    const result = await window.marknote.getKimiPluginStatus();
+    state.kimiPlugin = {
+      ...state.kimiPlugin,
+      ...result,
+      checking: false,
+      installing: false,
+      message: ""
+    };
+  } catch (error) {
+    state.kimiPlugin.checking = false;
+    state.kimiPlugin.message = error?.message || t("kimiPluginInstallFailed");
+  }
+  renderKimiPluginSettings();
+}
+
+async function installKimiPlugin() {
+  if (state.kimiPlugin.installing || !window.marknote?.installKimiPlugin) return;
+  state.kimiPlugin.installing = true;
+  state.kimiPlugin.message = t("kimiPluginInstalling");
+  renderKimiPluginSettings();
+  try {
+    const result = await window.marknote.installKimiPlugin();
+    const message = result.ok
+      ? result.cliAvailable
+        ? t("kimiPluginInstallSuccess")
+        : t("kimiPluginCliMissing")
+      : t("kimiPluginInstallFailed");
+    state.kimiPlugin = {
+      ...state.kimiPlugin,
+      ...result,
+      checking: false,
+      installing: false,
+      exported: Boolean(result.exported || result.pluginPath),
+      installed: Boolean(result.installed),
+      message
+    };
+    showToast(result.ok ? t("kimiPluginInstallSuccess") : t("kimiPluginInstallFailed"));
+  } catch (error) {
+    state.kimiPlugin.installing = false;
+    state.kimiPlugin.message = error?.message || t("kimiPluginInstallFailed");
+    showToast(t("kimiPluginInstallFailed"));
+  }
+  renderKimiPluginSettings();
+}
+
+async function openKimiPluginFolder() {
+  try {
+    await window.marknote?.openKimiPluginFolder?.();
+  } catch (error) {
+    state.kimiPlugin.message = error?.message || t("kimiPluginInstallFailed");
+    renderKimiPluginSettings();
   }
 }
 
@@ -6613,6 +6747,9 @@ function bindEvents() {
   elements.codexPluginSettingsNavButton.addEventListener("click", () => openSettingsPage("codex-plugin"));
   elements.installCodexPluginButton.addEventListener("click", installCodexPlugin);
   elements.openCodexPluginButton.addEventListener("click", openCodexPlugin);
+  elements.kimiPluginSettingsNavButton.addEventListener("click", () => openSettingsPage("kimi-plugin"));
+  elements.installKimiPluginButton.addEventListener("click", installKimiPlugin);
+  elements.openKimiPluginButton.addEventListener("click", openKimiPluginFolder);
   elements.languageSelect.addEventListener("change", (event) => {
     setLanguage(event.target.value);
   });

@@ -13,7 +13,7 @@
 - 更完整的 Markdown 预览：表格、引用、代码块、任务列表等
 - 多主题、四种视图模式、自动换行、界面语言设置
 - AI Agent 侧边栏：可总结、润色、整理结构、续写，并生成可预览后应用的修改草案
-- 内置 MarkNote Codex 插件，可在设置中一键释放并安装到本机 Codex
+- 内置 MarkNote Codex / Kimi Code 插件，可在设置中一键释放并安装到本机 Codex 或 Kimi Code
 - 通过 GitHub 私有仓库在桌面端和 Android 端手动同步整个资料库
 - 点击顶部文件名查看最近打开的文件并快速切换
 - 自动保存草稿，异常退出后可恢复
@@ -77,6 +77,12 @@ AI 可以直接回复，也可以生成一份完整 Markdown 草案。草案不�
 打开“设置 → Codex 插件”，点击“安装到 Codex”。MarkNote 会把内置插件释放到自己的用户数据目录，并自动注册到 Codex；安装完成后请在 Codex 中新建对话，通过 `@marknote` 搜索、读取或整理资料库笔记。
 
 插件使用 MarkNote 自带的 Electron 运行时，因此在 macOS 和 Windows 上都不需要另外安装 Node.js。更换电脑后，只需安装 MarkNote、重新选择资料库，再点击一次“安装到 Codex”。
+
+### Kimi Code 插件
+
+打开“设置 → Kimi Code 插件”，点击“安装到 Kimi Code”。MarkNote 会把内置插件释放到自己的用户数据目录，并自动把安装命令复制到剪贴板。然后在 Kimi Code 中粘贴执行这条命令（形如 `/plugins install <插件路径>`），按提示确认信任此第三方插件，最后运行 `/reload` 或新建会话，即可通过 `@marknote` 相关能力搜索、读取或整理资料库笔记。
+
+和 Codex 插件一样，Kimi Code 插件也使用 MarkNote 自带的 Electron 运行时，不需要另外安装 Node.js。点击“打开插件文件夹”可以查看释放出来的插件目录；设置页会显示当前是否已安装。
 
 ### GitHub 手动同步
 
