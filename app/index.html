@@ -180,11 +180,16 @@
                 <option value="openai">OpenAI</option>
                 <option value="deepseek">DeepSeek</option>
                 <option value="mimo">MiMo</option>
+                <option value="kimi">Kimi</option>
               </select>
             </label>
-            <label class="settingRow" for="aiModelSelect">
+            <label class="settingRow" for="aiModelInput">
               <span data-i18n="aiModel">Model</span>
-              <select id="aiModelSelect"></select>
+              <div class="modelCombo" id="aiModelCombo">
+                <input class="modelComboInput" id="aiModelInput" autocomplete="off" spellcheck="false" />
+                <button class="modelComboToggle" id="aiModelComboToggle" type="button" aria-label="展开模型列表" title="展开模型列表">▾</button>
+                <div class="modelComboList" id="aiModelComboList" hidden></div>
+              </div>
             </label>
             <label class="settingRow" for="aiBaseUrlInput">
               <span data-i18n="aiBaseUrl">Base URL</span>

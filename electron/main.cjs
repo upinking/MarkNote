@@ -819,21 +819,24 @@ ipcMain.handle("ai:stream", async (event, message) => {
   }
 });
 
-const aiProviders = ["openai", "deepseek", "mimo"];
+const aiProviders = ["openai", "deepseek", "mimo", "kimi"];
 const aiProviderLabels = {
   openai: "OpenAI",
   deepseek: "DeepSeek",
-  mimo: "MiMo"
+  mimo: "MiMo",
+  kimi: "Kimi"
 };
 const defaultAiModels = {
-  openai: "gpt-4.1-mini",
+  openai: "gpt-5-mini",
   deepseek: "deepseek-v4-flash",
-  mimo: "mimo-v2.5"
+  mimo: "mimo-v2.5",
+  kimi: "kimi-k2.6"
 };
 const defaultAiBaseUrls = {
   openai: "https://api.openai.com/v1",
   deepseek: "https://api.deepseek.com",
-  mimo: "https://api.mimo-v2.com/v1"
+  mimo: "https://api.mimo-v2.com/v1",
+  kimi: "https://api.moonshot.cn/v1"
 };
 
 function buildAiRequest(payload) {
@@ -977,21 +980,39 @@ function normalizeChatBaseUrl(baseUrl, provider) {
   return withoutTrailingSlash.replace(/\/chat\/completions$/i, "");
 }
 
-async function callOpenAICompatible({ apiKey, model, baseUrl, systemPrompt, userContent, provider }) {
-  const response = await fetch(`${baseUrl}/chat/completions`, {
+async function postChatCompletion({ baseUrl, apiKey, body }) {
+  const send = (payload) => fetch(`${baseUrl}/chat/completions`, {
     method: "POST",
     headers: {
       "Authorization": `Bearer ${apiKey}`,
       "Content-Type": "application/json"
     },
-    body: JSON.stringify({
+    body: JSON.stringify(payload)
+  });
+
+  let response = await send(body);
+  if (!response.ok && body.temperature !== 1) {
+    const data = await response.clone().json().catch(() => ({}));
+    if (/temperature/i.test(String(data?.error?.message || ""))) {
+      // Some models (Kimi K3, OpenAI reasoning models) only accept temperature=1.
+      response = await send({ ...body, temperature: 1 });
+    }
+  }
+  return response;
+}
+
+async function callOpenAICompatible({ apiKey, model, baseUrl, systemPrompt, userContent, provider }) {
+  const response = await postChatCompletion({
+    baseUrl,
+    apiKey,
+    body: {
       model,
       messages: [
         { role: "system", content: systemPrompt },
         { role: "user", content: userContent }
       ],
       temperature: 0.4
-    })
+    }
   });
 
   const data = await response.json().catch(() => ({}));
@@ -1005,13 +1026,10 @@ async function callOpenAICompatible({ apiKey, model, baseUrl, systemPrompt, user
 }
 
 async function callOpenAICompatibleStream({ apiKey, model, baseUrl, systemPrompt, userContent, provider }, onDelta) {
-  const response = await fetch(`${baseUrl}/chat/completions`, {
-    method: "POST",
-    headers: {
-      "Authorization": `Bearer ${apiKey}`,
-      "Content-Type": "application/json"
-    },
-    body: JSON.stringify({
+  const response = await postChatCompletion({
+    baseUrl,
+    apiKey,
+    body: {
       model,
       messages: [
         { role: "system", content: systemPrompt },
@@ -1019,7 +1037,7 @@ async function callOpenAICompatibleStream({ apiKey, model, baseUrl, systemPrompt
       ],
       temperature: 0.4,
       stream: true
-    })
+    }
   });
 
   if (!response.ok) {
@@ -1039,20 +1057,17 @@ async function callOpenAICompatibleStream({ apiKey, model, baseUrl, systemPrompt
 }
 
 async function callDeepSeek({ apiKey, model, baseUrl, systemPrompt, userPrompt }) {
-  const response = await fetch(`${baseUrl}/chat/completions`, {
-    method: "POST",
-    headers: {
-      "Authorization": `Bearer ${apiKey}`,
-      "Content-Type": "application/json"
-    },
-    body: JSON.stringify({
+  const response = await postChatCompletion({
+    baseUrl,
+    apiKey,
+    body: {
       model,
       messages: [
         { role: "system", content: systemPrompt },
         { role: "user", content: userPrompt }
       ],
       temperature: 0.4
-    })
+    }
   });
 
   const data = await response.json().catch(() => ({}));
@@ -1066,13 +1081,10 @@ async function callDeepSeek({ apiKey, model, baseUrl, systemPrompt, userPrompt }
 }
 
 async function callDeepSeekStream({ apiKey, model, baseUrl, systemPrompt, userPrompt }, onDelta) {
-  const response = await fetch(`${baseUrl}/chat/completions`, {
-    method: "POST",
-    headers: {
-      "Authorization": `Bearer ${apiKey}`,
-      "Content-Type": "application/json"
-    },
-    body: JSON.stringify({
+  const response = await postChatCompletion({
+    baseUrl,
+    apiKey,
+    body: {
       model,
       messages: [
         { role: "system", content: systemPrompt },
@@ -1080,7 +1092,7 @@ async function callDeepSeekStream({ apiKey, model, baseUrl, systemPrompt, userPr
       ],
       temperature: 0.4,
       stream: true
-    })
+    }
   });
 
   if (!response.ok) {

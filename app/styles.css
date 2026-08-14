@@ -430,6 +430,95 @@ button {
   width: 148px;
 }
 
+.modelCombo {
+  position: relative;
+  display: flex;
+  align-items: center;
+  width: 148px;
+  height: 30px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: var(--surface-strong);
+  color: var(--text);
+  font-size: 13px;
+  transition:
+    border-color 180ms ease,
+    background-color 220ms ease;
+}
+
+.modelCombo:focus-within {
+  border-color: var(--accent);
+}
+
+.modelComboInput {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  border: 0;
+  padding: 0 2px 0 8px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  outline: none;
+}
+
+.modelComboToggle {
+  flex: 0 0 auto;
+  width: 22px;
+  height: 100%;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 11px;
+  line-height: 1;
+}
+
+.modelComboToggle:hover {
+  color: var(--accent-text);
+}
+
+.modelComboList {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  z-index: 32;
+  width: max(100%, 190px);
+  max-height: 224px;
+  overflow: auto;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 4px;
+  background: var(--surface);
+  box-shadow: 0 12px 32px rgba(16, 24, 40, 0.16);
+}
+
+.modelComboOption {
+  display: block;
+  width: 100%;
+  border: 0;
+  border-radius: 5px;
+  padding: 6px 8px;
+  background: transparent;
+  color: var(--text);
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 600;
+  text-align: left;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.modelComboOption:hover {
+  background: var(--surface-strong);
+}
+
+.modelComboOption.active {
+  color: var(--accent-text);
+}
+
 .settingButtonGrid {
   display: grid;
   grid-template-columns: 1fr 1fr;

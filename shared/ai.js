@@ -2,7 +2,7 @@ export const aiProviders = {
   openai: {
     label: "OpenAI",
     baseUrl: "https://api.openai.com/v1",
-    model: "gpt-4.1-mini"
+    model: "gpt-5-mini"
   },
   deepseek: {
     label: "DeepSeek",
@@ -13,6 +13,11 @@ export const aiProviders = {
     label: "MiMo",
     baseUrl: "https://api.mimo-v2.com/v1",
     model: "mimo-v2.5"
+  },
+  kimi: {
+    label: "Kimi",
+    baseUrl: "https://api.moonshot.cn/v1",
+    model: "kimi-k2.6"
   }
 };
 
@@ -31,21 +36,31 @@ export async function requestAiCompletion({ settings, system, prompt }) {
   }
 
   const baseUrl = String(settings.baseUrl || "").replace(/\/+$/, "");
-  const response = await fetch(`${baseUrl}/chat/completions`, {
+  const body = {
+    model: settings.model,
+    messages: [
+      { role: "system", content: system || "你是 MarkNote 的写作助手，请用简洁清楚的中文回答。" },
+      { role: "user", content: prompt }
+    ],
+    temperature: 0.4
+  };
+  const send = (payload) => fetch(`${baseUrl}/chat/completions`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
       Authorization: `Bearer ${settings.apiKey}`
     },
-    body: JSON.stringify({
-      model: settings.model,
-      messages: [
-        { role: "system", content: system || "你是 MarkNote 的写作助手，请用简洁清楚的中文回答。" },
-        { role: "user", content: prompt }
-      ],
-      temperature: 0.4
-    })
+    body: JSON.stringify(payload)
   });
+
+  let response = await send(body);
+  if (!response.ok) {
+    const data = await response.clone().json().catch(() => ({}));
+    if (/temperature/i.test(String(data?.error?.message || ""))) {
+      // Some models (Kimi K3, OpenAI reasoning models) only accept temperature=1.
+      response = await send({ ...body, temperature: 1 });
+    }
+  }
 
   if (!response.ok) {
     throw new Error(`AI 请求失败：${response.status}`);

@@ -591,7 +591,7 @@ const isMac = platform === "darwin" || navigator.platform.toLowerCase().includes
 const themes = ["light", "dark", "paper", "forest", "ocean", "rose", "orbit"];
 const viewModes = ["wysiwyg", "edit", "preview", "reading"];
 const languages = ["zh", "en", "ja"];
-const aiProviders = ["openai", "deepseek", "mimo"];
+const aiProviders = ["openai", "deepseek", "mimo", "kimi"];
 const aiAttachmentLimits = {
   maxCount: 6,
   maxImageBytes: 8 * 1024 * 1024,
@@ -609,12 +609,14 @@ const paneWidthLimits = {
 const aiProviderLabels = {
   openai: "OpenAI",
   deepseek: "DeepSeek",
-  mimo: "MiMo"
+  mimo: "MiMo",
+  kimi: "Kimi"
 };
 const aiModelSuggestions = {
-  openai: ["gpt-4.1-mini"],
-  deepseek: ["deepseek-v4-flash"],
-  mimo: ["mimo-v2.5", "mimo-v2.5-pro", "mimo-v2-flash"]
+  openai: ["gpt-5.6", "gpt-5.5", "gpt-5.2", "gpt-5-mini", "gpt-5-nano", "gpt-4.1"],
+  deepseek: ["deepseek-v4-flash", "deepseek-v4-pro"],
+  mimo: ["mimo-v2.5", "mimo-v2.5-pro"],
+  kimi: ["k3", "kimi-k2.6", "kimi-k2.7-code", "kimi-latest"]
 };
 
 const defaultPreferences = {
@@ -632,19 +634,22 @@ const defaultPreferences = {
 const defaultAiSettings = {
   provider: "openai",
   models: {
-    openai: "gpt-4.1-mini",
+    openai: "gpt-5-mini",
     deepseek: "deepseek-v4-flash",
-    mimo: "mimo-v2.5"
+    mimo: "mimo-v2.5",
+    kimi: "kimi-k2.6"
   },
   baseUrls: {
     openai: "https://api.openai.com/v1",
     deepseek: "https://api.deepseek.com",
-    mimo: "https://api.mimo-v2.com/v1"
+    mimo: "https://api.mimo-v2.com/v1",
+    kimi: "https://api.moonshot.cn/v1"
   },
   apiKeys: {
     openai: "",
     deepseek: "",
-    mimo: ""
+    mimo: "",
+    kimi: ""
   }
 };
 
@@ -783,7 +788,10 @@ const elements = {
   aiAttachmentTray: document.querySelector("#aiAttachmentTray"),
   aiSendButton: document.querySelector("#aiSendButton"),
   aiProviderSelect: document.querySelector("#aiProviderSelect"),
-  aiModelSelect: document.querySelector("#aiModelSelect"),
+  aiModelCombo: document.querySelector("#aiModelCombo"),
+  aiModelInput: document.querySelector("#aiModelInput"),
+  aiModelComboToggle: document.querySelector("#aiModelComboToggle"),
+  aiModelComboList: document.querySelector("#aiModelComboList"),
   aiBaseUrlInput: document.querySelector("#aiBaseUrlInput"),
   aiApiKeyInput: document.querySelector("#aiApiKeyInput"),
   cloudUploadButton: document.querySelector("#cloudUploadButton"),
@@ -2701,6 +2709,28 @@ function attachmentProviderError(attachments) {
   return "";
 }
 
+function renderAiModelComboList(options, currentModel) {
+  if (!elements.aiModelComboList) return;
+  elements.aiModelComboList.innerHTML = "";
+  options.forEach((optionModel) => {
+    const option = document.createElement("button");
+    option.type = "button";
+    option.className = "modelComboOption";
+    if (optionModel === currentModel) option.classList.add("active");
+    option.textContent = optionModel;
+    option.title = optionModel;
+    option.addEventListener("click", () => {
+      closeAiModelComboList();
+      setAiModel(optionModel);
+    });
+    elements.aiModelComboList.append(option);
+  });
+}
+
+function closeAiModelComboList() {
+  if (elements.aiModelComboList) elements.aiModelComboList.hidden = true;
+}
+
 function renderAiPanel() {
   if (!elements.aiPane) return;
 
@@ -2710,10 +2740,8 @@ function renderAiPanel() {
   const model = currentAiModel();
   const suggestions = aiModelSuggestions[currentAiProvider()] || [];
   const modelOptions = suggestions.includes(model) ? suggestions : [model, ...suggestions];
-  elements.aiModelSelect.innerHTML = modelOptions
-    .map((optionModel) => `<option value="${escapeHtml(optionModel)}">${escapeHtml(optionModel)}</option>`)
-    .join("");
-  elements.aiModelSelect.value = model;
+  elements.aiModelInput.value = model;
+  renderAiModelComboList(modelOptions, model);
   elements.aiBaseUrlInput.value = currentAiBaseUrl();
   elements.aiBaseUrlInput.disabled = state.aiLoading;
   elements.aiApiKeyInput.value = currentAiKey();
@@ -5672,7 +5700,7 @@ function renderSettingsPage() {
   elements.cloudSettingsSummary.textContent = state.cloudSettings.owner && state.cloudSettings.repo
     ? `${state.cloudSettings.owner}/${state.cloudSettings.repo}`
     : "未配置";
-  elements.aiSettingsSummary.textContent = currentAiProvider();
+  elements.aiSettingsSummary.textContent = aiProviderLabels[currentAiProvider()] || currentAiProvider();
   renderCodexPluginSettings();
   renderKimiPluginSettings();
 }
@@ -6862,8 +6890,15 @@ function bindEvents() {
   elements.aiProviderSelect.addEventListener("change", (event) => {
     setAiProvider(event.target.value);
   });
-  elements.aiModelSelect.addEventListener("change", (event) => {
+  elements.aiModelInput.addEventListener("change", (event) => {
     setAiModel(event.target.value);
+  });
+  elements.aiModelInput.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") closeAiModelComboList();
+  });
+  elements.aiModelComboToggle.addEventListener("click", (event) => {
+    event.stopPropagation();
+    elements.aiModelComboList.hidden = !elements.aiModelComboList.hidden;
   });
   elements.aiBaseUrlInput.addEventListener("change", (event) => {
     setAiBaseUrl(event.target.value);
@@ -6888,6 +6923,14 @@ function bindEvents() {
       !elements.fileSwitcher.contains(event.target)
     ) {
       closeRecentPanel();
+    }
+
+    if (
+      elements.aiModelComboList &&
+      !elements.aiModelComboList.hidden &&
+      !elements.aiModelCombo.contains(event.target)
+    ) {
+      closeAiModelComboList();
     }
 
     if (
