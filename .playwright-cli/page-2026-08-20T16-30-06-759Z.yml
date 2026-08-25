@@ -1,0 +1,125 @@
+- generic [ref=e2]:
+  - banner [ref=e3]:
+    - generic "MarkNote" [ref=e4]
+    - generic [ref=e7]:
+      - button "✦ Nueva" [ref=e146] [cursor=pointer]:
+        - generic [ref=e9]: ✦
+        - generic [ref=e10]: Nueva
+      - button "⌘ Biblioteca" [ref=e147] [cursor=pointer]:
+        - generic [ref=e12]: ⌘
+        - generic [ref=e13]: Biblioteca
+      - button "✓ Guardar" [ref=e148] [cursor=pointer]:
+        - generic [ref=e15]: ✓
+        - generic [ref=e16]: Guardar
+    - button "未命名.md ⌄" [ref=e18] [cursor=pointer]:
+      - generic [ref=e20]: 未命名.md
+      - generic [ref=e21]: ⌄
+    - generic [ref=e23]:
+      - button "✧ IA" [ref=e149] [cursor=pointer]:
+        - generic [ref=e25]: ✧
+        - generic [ref=e26]: IA
+      - button "◐ Vista previa" [ref=e150] [cursor=pointer]:
+        - generic [ref=e28]: ◐
+        - generic [ref=e29]: Vista previa
+      - button "☾ Luz del día" [ref=e151] [cursor=pointer]:
+        - generic [ref=e31]: ☾
+        - generic [ref=e32]: Luz del día
+      - button "⚙ Configuración" [active] [ref=e152] [cursor=pointer]:
+        - generic [ref=e34]: ⚙
+        - generic [ref=e35]: Configuración
+    - generic [ref=e96]:
+      - generic [ref=e97]: Configuración
+      - generic [ref=e99]:
+        - generic [ref=e100]:
+          - generic [ref=e101]: Idioma
+          - combobox "Idioma" [ref=e153]:
+            - option "中文"
+            - option "English"
+            - option "日本語"
+            - option "Español" [selected]
+        - generic [ref=e103]:
+          - generic [ref=e104]: Tema
+          - combobox "Tema" [ref=e154]:
+            - option "Luz del día" [selected]
+            - option "Noche"
+            - option "Papel"
+            - option "Bosque"
+            - option "Océano"
+            - option "Rosa"
+            - option "Órbita"
+        - generic [ref=e106]:
+          - generic [ref=e107]: Ajuste de línea
+          - checkbox "Ajuste de línea" [ref=e155]
+        - generic [ref=e109]:
+          - generic [ref=e110]: Convertir casillas de tareas automáticamente
+          - checkbox "Convertir casillas de tareas automáticamente" [checked] [ref=e156]
+        - button "同步 未配置 ›" [ref=e112] [cursor=pointer]:
+          - generic [ref=e113]: 同步
+          - generic [ref=e114]: 未配置
+          - generic [ref=e115]: ›
+        - button "Configuración de IA OpenAI ›" [ref=e157] [cursor=pointer]:
+          - generic [ref=e117]: Configuración de IA
+          - generic [ref=e118]: OpenAI
+          - generic [ref=e119]: ›
+        - button "Plugin de Codex No instalado ›" [ref=e158] [cursor=pointer]:
+          - generic [ref=e121]: Plugin de Codex
+          - generic [ref=e122]: No instalado
+          - generic [ref=e123]: ›
+        - button "Plugin de Kimi Code No instalado ›" [ref=e159] [cursor=pointer]:
+          - generic [ref=e125]: Plugin de Kimi Code
+          - generic [ref=e126]: No instalado
+          - generic [ref=e127]: ›
+        - button "Guía de uso ↗" [ref=e160] [cursor=pointer]:
+          - generic [ref=e129]: Guía de uso
+          - generic [ref=e130]: ↗
+  - main [ref=e36]:
+    - complementary [ref=e37]:
+      - generic [ref=e38]:
+        - button "收起资料库" [expanded] [ref=e39] [cursor=pointer]:
+          - generic [ref=e40]: ‹
+        - generic [ref=e41]:
+          - strong [ref=e42]: 资料库
+          - generic [ref=e43]: 未选择文件夹
+        - button "⌘" [ref=e44] [cursor=pointer]
+      - generic [ref=e45]:
+        - button "导入 Markdown" [disabled] [ref=e46]
+        - button "刷新" [disabled] [ref=e47]
+      - generic [ref=e48]:
+        - generic [ref=e49]: 搜索
+        - searchbox "搜索" [ref=e50]
+      - generic [ref=e51]:
+        - generic [ref=e52]: 分类
+        - button "新建" [disabled] [ref=e53]
+      - navigation "资料库文件夹" [ref=e57]:
+        - button "全部 0" [ref=e163] [cursor=pointer]:
+          - generic [ref=e164]: 全部
+          - generic [ref=e165]: "0"
+        - button "归档 0" [ref=e166] [cursor=pointer]:
+          - generic [ref=e167]: 归档
+          - generic [ref=e168]: "0"
+      - generic [ref=e64]:
+        - generic [ref=e65]: 笔记
+        - generic [ref=e66]: "0"
+      - generic [ref=e169]:
+        - strong [ref=e170]: 选择一个笔记文件夹
+        - generic [ref=e171]: MarkNote 会把这个文件夹作为资料库，直接读写里面的 Markdown 文件。
+      - separator "调整资料库宽度" [ref=e71]
+    - complementary [ref=e72]:
+      - generic [ref=e73]:
+        - button "收起目录" [expanded] [ref=e74] [cursor=pointer]:
+          - generic [ref=e75]: ‹
+        - generic [ref=e76]:
+          - generic [ref=e77]: Esquema
+          - generic [ref=e78]: 0 encabezados
+        - button "Contraer todos los encabezados" [disabled] [ref=e172]
+      - navigation "文章目录" [ref=e83]:
+        - generic [ref=e176]: "Añade encabezados #, ## o ### para crear un esquema."
+      - separator "调整目录宽度" [ref=e85]
+    - textbox "Markdown 编辑区" [ref=e87]
+    - article [ref=e89]
+  - contentinfo [ref=e90]:
+    - generic [ref=e91]: 1 líneas
+    - generic [ref=e92]: 0 palabras
+    - generic [ref=e93]: 0 caracteres
+    - generic [ref=e94]: Guardado
+    - generic [ref=e95]: No hay ningún encabezado seleccionado

@@ -27,6 +27,7 @@ import {
 import { requestAiCompletion, aiProviders, defaultAiSettings } from "../../shared/ai.js";
 import { extractHeadings, markdownDocumentToHtml, escapeHtml } from "../../shared/markdown.js";
 import { syncNotesWithGitHub } from "../../shared/github-sync.mjs";
+import { createNoteRepository } from "../../shared/note-storage.mjs";
 import {
   createEmptyNote,
   noteSyncStates,
@@ -38,7 +39,9 @@ import "./styles.css";
 const keys = {
   legacyNotes: "marknote.mobile.notes",
   repositoryNotes: "marknote.mobile.repository.notes.v1",
-  migrationDone: "marknote.mobile.repository.migrated.v1",
+  repositoryIndex: "marknote.mobile.repository.index.v2",
+  repositoryItemPrefix: "marknote.mobile.repository.note.v2.",
+  repositoryMigrationDone: "marknote.mobile.repository.migrated.v2",
   selectedId: "marknote.mobile.selectedId",
   ai: "marknote.mobile.ai",
   github: "marknote.mobile.github.v1",
@@ -47,6 +50,7 @@ const keys = {
 
 const SecureStorage = registerPlugin("SecureStorage");
 const githubTokenSessionKey = "marknote.github.token.session";
+const aiKeySessionKey = "marknote.ai.key.session";
 const defaultGitHubSettings = { owner: "", repo: "", branch: "main", remoteFolder: "notes" };
 const longNoteThreshold = 6000;
 const documentRenderCache = new Map();
@@ -63,29 +67,18 @@ function lucideIcon(iconNode, className = "") {
   }).outerHTML;
 }
 
-const NoteRepository = {
-  list() {
-    migrateLegacyNotes();
-    return readNotesFromStorage(keys.repositoryNotes);
-  },
-  save(note) {
-    const notes = readNotesFromStorage(keys.repositoryNotes);
-    const nextNotes = sortNotes([
-      note,
-      ...notes.filter((item) => item.id !== note.id)
-    ]);
-    localStorage.setItem(keys.repositoryNotes, JSON.stringify(nextNotes));
-    return nextNotes;
-  },
-  delete(id) {
-    const notes = readNotesFromStorage(keys.repositoryNotes).filter((note) => note.id !== id);
-    localStorage.setItem(keys.repositoryNotes, JSON.stringify(notes));
-    return notes;
-  }
-};
+const NoteRepository = createNoteRepository(localStorage, {
+  indexKey: keys.repositoryIndex,
+  itemPrefix: keys.repositoryItemPrefix,
+  migrationKey: keys.repositoryMigrationDone,
+  legacyKeys: [keys.repositoryNotes, keys.legacyNotes],
+  normalize: normalizeLocalNote,
+  sort: sortNotes
+});
 
 const state = {
   aiSettings: loadJson(keys.ai, defaultAiSettings()),
+  aiKeyConfigured: false,
   notes: NoteRepository.list(),
   selectedId: localStorage.getItem(keys.selectedId) || "",
   mode: "reader",
@@ -127,16 +120,25 @@ async function init() {
 
   if (!state.notes.length) {
     const note = createMobileNote();
-    state.notes = [note];
+    state.notes = NoteRepository.save(note);
     state.selectedId = note.id;
     state.editorDraft = note.content;
-    saveLocalNotes();
+    saveSelection();
   }
 
   if (!selectedNote()) {
     state.selectedId = state.notes[0]?.id || "";
   }
   state.editorDraft = selectedNote()?.content || "";
+  const legacyAiKey = String(state.aiSettings.apiKey || "").trim();
+  try {
+    if (legacyAiKey) await setSecureAiKey(legacyAiKey);
+    delete state.aiSettings.apiKey;
+    localStorage.setItem(keys.ai, JSON.stringify(state.aiSettings));
+  } catch {
+    // Keep the legacy value until the device's secure storage becomes available.
+  }
+  state.aiKeyConfigured = Boolean(await getSecureAiKey().catch(() => ""));
   state.githubTokenConfigured = Boolean(await getSecureGitHubToken().catch(() => ""));
   render();
 }
@@ -147,30 +149,6 @@ function loadJson(key, fallback) {
   } catch {
     return fallback;
   }
-}
-
-function readNotesFromStorage(key) {
-  try {
-    const notes = JSON.parse(localStorage.getItem(key) || "[]");
-    return Array.isArray(notes) ? sortNotes(notes.map(normalizeLocalNote)) : [];
-  } catch {
-    return [];
-  }
-}
-
-function migrateLegacyNotes() {
-  if (localStorage.getItem(keys.migrationDone)) return;
-  const current = readNotesFromStorage(keys.repositoryNotes);
-  if (current.length) {
-    localStorage.setItem(keys.migrationDone, "1");
-    return;
-  }
-
-  const legacy = readNotesFromStorage(keys.legacyNotes);
-  if (legacy.length) {
-    localStorage.setItem(keys.repositoryNotes, JSON.stringify(legacy));
-  }
-  localStorage.setItem(keys.migrationDone, "1");
 }
 
 function normalizeLocalNote(note) {
@@ -225,8 +203,21 @@ async function removeSecureGitHubToken() {
   await SecureStorage.remove();
 }
 
-function saveLocalNotes() {
-  localStorage.setItem(keys.repositoryNotes, JSON.stringify(sortNotes(state.notes)));
+async function getSecureAiKey() {
+  if (!Capacitor.isNativePlatform()) return sessionStorage.getItem(aiKeySessionKey) || "";
+  const result = await SecureStorage.get({ key: "ai" });
+  return String(result?.value || "");
+}
+
+async function setSecureAiKey(apiKey) {
+  if (!Capacitor.isNativePlatform()) {
+    sessionStorage.setItem(aiKeySessionKey, apiKey);
+    return;
+  }
+  await SecureStorage.set({ key: "ai", value: apiKey });
+}
+
+function saveSelection() {
   if (state.selectedId) localStorage.setItem(keys.selectedId, state.selectedId);
 }
 
@@ -297,18 +288,18 @@ function selectNote(id) {
   state.editorDraft = selectedNote()?.content || "";
   state.mode = "reader";
   state.panel = "";
-  saveLocalNotes();
+  saveSelection();
   render();
   restoreReaderScrollPosition(0);
 }
 
 function createNote() {
   const note = createMobileNote();
-  state.notes = sortNotes([note, ...state.notes]);
+  state.notes = NoteRepository.save(note);
   state.selectedId = note.id;
   state.editorDraft = note.content;
   state.mode = "editor";
-  saveLocalNotes();
+  saveSelection();
   render();
 }
 
@@ -332,7 +323,7 @@ async function saveDraft() {
 
 function replaceNote(nextNote) {
   state.notes = NoteRepository.save(nextNote);
-  saveLocalNotes();
+  saveSelection();
 }
 
 async function deleteSelectedNote() {
@@ -344,7 +335,7 @@ async function deleteSelectedNote() {
   state.selectedId = state.notes.find((item) => !item.deleted_at)?.id || "";
   state.mode = "reader";
   state.panel = "";
-  saveLocalNotes();
+  saveSelection();
   render();
 }
 
@@ -413,14 +404,14 @@ async function runGitHubSync() {
     });
     localStorage.setItem(keys.syncBaseline, JSON.stringify(result.baseline));
     const syncedAt = new Date().toISOString();
-    state.notes = state.notes.map((note) => ({
+    state.notes = NoteRepository.saveAll(state.notes.map((note) => ({
       ...note,
       lastSyncedAt: syncedAt,
       syncState: noteSyncStates.synced
-    }));
+    })));
     if (!selectedNote()) state.selectedId = state.notes[0]?.id || "";
     state.editorDraft = selectedNote()?.content || "";
-    saveLocalNotes();
+    saveSelection();
     state.syncMessage = mobileSyncSummary(result.summary);
     showToast("GitHub 同步完成");
   } catch (error) {
@@ -456,15 +447,15 @@ async function deleteSyncedNote(relativePath) {
   if (!current) return;
   state.notes = NoteRepository.delete(current.id);
   if (state.selectedId === current.id) state.selectedId = state.notes[0]?.id || "";
-  saveLocalNotes();
+  saveSelection();
 }
 
 function readSyncBaseline() {
   try {
     const value = JSON.parse(localStorage.getItem(keys.syncBaseline) || "null");
-    return value?.version === 1 ? value : { version: 1, notes: {} };
+    return [1, 2].includes(value?.version) ? value : { version: 2, notes: {} };
   } catch {
-    return { version: 1, notes: {} };
+    return { version: 2, notes: {} };
   }
 }
 
@@ -479,18 +470,26 @@ function cleanSyncError(error) {
   return String(error?.message || error || "同步失败").replace(/^Error:\s*/, "");
 }
 
-function saveAiSettings(event) {
+async function saveAiSettings(event) {
   event.preventDefault();
   const form = new FormData(event.currentTarget);
+  const apiKey = String(form.get("apiKey") || "").trim();
   state.aiSettings = {
     provider: String(form.get("provider") || "openai"),
     baseUrl: String(form.get("baseUrl") || "").trim(),
-    model: String(form.get("model") || "").trim(),
-    apiKey: String(form.get("apiKey") || "")
+    model: String(form.get("model") || "").trim()
   };
-  localStorage.setItem(keys.ai, JSON.stringify(state.aiSettings));
-  showToast("AI 设置已保存");
-  render();
+  try {
+    if (apiKey) {
+      await setSecureAiKey(apiKey);
+      state.aiKeyConfigured = true;
+    }
+    localStorage.setItem(keys.ai, JSON.stringify(state.aiSettings));
+    showToast("AI 设置已保存");
+    render();
+  } catch (error) {
+    showToast(error?.message || "无法安全保存 AI 设置");
+  }
 }
 
 function applyProviderDefaults(provider) {
@@ -520,8 +519,9 @@ async function runAi(action) {
   state.aiResult = "";
   render();
   try {
+    const apiKey = await getSecureAiKey();
     state.aiResult = await requestAiCompletion({
-      settings: state.aiSettings,
+      settings: { ...state.aiSettings, apiKey },
       prompt
     });
   } catch (error) {
@@ -849,7 +849,7 @@ function settingsPanel(note) {
       </label>
       <label>
         <span>API Key</span>
-        <input name="apiKey" type="password" value="${escapeHtml(state.aiSettings.apiKey)}" autocomplete="off" />
+        <input name="apiKey" type="password" value="" autocomplete="off" placeholder="${state.aiKeyConfigured ? "已安全保存；留空不修改" : "API Key"}" />
       </label>
       <button class="primaryButton fullWidth" type="submit">${lucideIcon(Check)}保存 AI 设置</button>
     </form>

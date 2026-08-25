@@ -36,9 +36,10 @@ public class SecureStoragePlugin extends Plugin {
             Cipher cipher = Cipher.getInstance("AES/GCM/NoPadding");
             cipher.init(Cipher.ENCRYPT_MODE, getOrCreateKey());
             byte[] encrypted = cipher.doFinal(value.getBytes(StandardCharsets.UTF_8));
+            String name = storageName(call);
             preferences().edit()
-                .putString(TOKEN, Base64.encodeToString(encrypted, Base64.NO_WRAP))
-                .putString(IV, Base64.encodeToString(cipher.getIV(), Base64.NO_WRAP))
+                .putString(valueKey(name), Base64.encodeToString(encrypted, Base64.NO_WRAP))
+                .putString(ivKey(name), Base64.encodeToString(cipher.getIV(), Base64.NO_WRAP))
                 .apply();
             call.resolve();
         } catch (Exception error) {
@@ -48,8 +49,9 @@ public class SecureStoragePlugin extends Plugin {
 
     @PluginMethod
     public void get(PluginCall call) {
-        String encryptedValue = preferences().getString(TOKEN, "");
-        String ivValue = preferences().getString(IV, "");
+        String name = storageName(call);
+        String encryptedValue = preferences().getString(valueKey(name), "");
+        String ivValue = preferences().getString(ivKey(name), "");
         JSObject result = new JSObject();
         if (encryptedValue.isEmpty() || ivValue.isEmpty()) {
             result.put("value", "");
@@ -64,15 +66,28 @@ public class SecureStoragePlugin extends Plugin {
             result.put("value", new String(decrypted, StandardCharsets.UTF_8));
             call.resolve(result);
         } catch (Exception error) {
-            preferences().edit().remove(TOKEN).remove(IV).apply();
-            call.reject("无法读取 GitHub Token，请重新保存", error);
+            preferences().edit().remove(valueKey(name)).remove(ivKey(name)).apply();
+            call.reject("无法读取安全存储，请重新保存", error);
         }
     }
 
     @PluginMethod
     public void remove(PluginCall call) {
-        preferences().edit().remove(TOKEN).remove(IV).apply();
+        String name = storageName(call);
+        preferences().edit().remove(valueKey(name)).remove(ivKey(name)).apply();
         call.resolve();
+    }
+
+    private String storageName(PluginCall call) {
+        return "ai".equals(call.getString("key")) ? "ai" : "github";
+    }
+
+    private String valueKey(String name) {
+        return "github".equals(name) ? TOKEN : name + "_secret";
+    }
+
+    private String ivKey(String name) {
+        return "github".equals(name) ? IV : name + "_secret_iv";
     }
 
     private SharedPreferences preferences() {

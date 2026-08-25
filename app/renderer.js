@@ -125,6 +125,7 @@ const translations = {
     aiThinkingStatus: "AI 正在思考",
     aiWritingDraft: "AI 正在生成修改草案",
     aiMissingKey: "请先在设置里填写 API Key。",
+    aiKeySavedPlaceholder: "已安全保存；输入新密钥可替换",
     aiError: "AI 请求失败",
     aiDraftReady: "已生成修改草案",
     aiApplyDraft: "应用修改",
@@ -315,6 +316,7 @@ const translations = {
     aiThinkingStatus: "AI is thinking",
     aiWritingDraft: "AI is drafting changes",
     aiMissingKey: "Add an API key in Settings first.",
+    aiKeySavedPlaceholder: "Saved securely; enter a new key to replace it",
     aiError: "AI request failed",
     aiDraftReady: "Draft changes are ready",
     aiApplyDraft: "Apply changes",
@@ -505,6 +507,7 @@ const translations = {
     aiThinkingStatus: "AIが考えています",
     aiWritingDraft: "AIが変更案を作成中",
     aiMissingKey: "先に設定でAPI Keyを入力してください。",
+    aiKeySavedPlaceholder: "安全に保存済み。新しいキーを入力すると置き換えます",
     aiError: "AIリクエストに失敗しました",
     aiDraftReady: "変更案を作成しました",
     aiApplyDraft: "変更を適用",
@@ -573,6 +576,198 @@ const translations = {
   }
 };
 
+translations.es = {
+  new: "Nueva",
+  open: "Biblioteca",
+  save: "Guardar",
+  saveAs: "Guardar como",
+  exportPdf: "Exportar PDF",
+  showInFolder: "Mostrar en la carpeta",
+  deleteFile: "Eliminar archivo",
+  closeHelp: "Cerrar guía",
+  viewWysiwyg: "Predeterminada",
+  viewEdit: "Editar",
+  viewPreview: "Vista previa",
+  viewReading: "Lectura",
+  currentFileTitle: "Archivo actual y archivos recientes",
+  recentFiles: "Archivos recientes",
+  noRecentFiles: "Aún no hay archivos recientes",
+  recentLibraryNotes: "Notas abiertas recientemente",
+  noRecentLibraryNotes: "Aún no se han abierto otras notas",
+  importFromLibraryAction: "Usa Importar Markdown en la biblioteca para archivos externos",
+  fileMissing: "No se pudo abrir el archivo y se eliminó de los recientes",
+  currentFile: "Archivo actual",
+  rename: "Cambiar nombre",
+  renameTitle: "Cambiar nombre del archivo",
+  renameHint: "Nuevo nombre del archivo",
+  renameConfirm: "Cambiar nombre",
+  renameSuccess: "Nombre cambiado",
+  renameUnavailable: "Guarda esta nota como archivo local antes de cambiarle el nombre",
+  renameExists: "Ya existe un archivo con ese nombre",
+  renameInvalid: "Introduce un nombre de archivo válido",
+  settings: "Configuración",
+  outline: "Esquema",
+  outlineCollapseAll: "Contraer todos los encabezados",
+  outlineExpandAll: "Expandir todos los encabezados",
+  backToTop: "Volver arriba",
+  language: "Idioma",
+  theme: "Tema",
+  themeLight: "Luz del día",
+  themeDark: "Noche",
+  themePaper: "Papel",
+  themeForest: "Bosque",
+  themeOcean: "Océano",
+  themeRose: "Rosa",
+  themeOrbit: "Órbita",
+  lineWrap: "Ajuste de línea",
+  taskBracketCompat: "Convertir casillas de tareas automáticamente",
+  tableBlock: "Tabla",
+  exitTableEdit: "Salir",
+  help: "Guía de uso",
+  ai: "IA",
+  aiTitle: "Abrir asistente de IA",
+  aiAgent: "Agente de IA",
+  aiCloseTitle: "Cerrar IA",
+  aiSettings: "Configuración de IA",
+  codexPluginSettings: "Plugin de Codex",
+  codexPluginTitle: "Conectar Codex",
+  codexPluginDescription: "Instala el plugin de MarkNote para que Codex pueda buscar, leer y modificar notas locales después de tu confirmación.",
+  codexPluginInstall: "Instalar en Codex",
+  codexPluginReinstall: "Reinstalar plugin",
+  codexPluginInstalling: "Instalando...",
+  codexPluginInstalled: "Instalado",
+  codexPluginNotInstalled: "No instalado",
+  codexPluginOpen: "Ver en Codex",
+  codexPluginInstallSuccess: "Plugin de MarkNote instalado",
+  codexPluginInstallFailed: "No se pudo instalar el plugin",
+  codexPluginChecking: "Comprobando...",
+  kimiPluginSettings: "Plugin de Kimi Code",
+  kimiPluginTitle: "Conectar Kimi Code",
+  kimiPluginDescription: "Instala el plugin de MarkNote para que Kimi Code pueda buscar, leer y modificar notas locales después de tu confirmación.",
+  kimiPluginInstall: "Instalar en Kimi Code",
+  kimiPluginReinstall: "Reinstalar plugin",
+  kimiPluginInstalling: "Instalando...",
+  kimiPluginInstalled: "Instalado",
+  kimiPluginNotInstalled: "No instalado",
+  kimiPluginOpenFolder: "Abrir carpeta del plugin",
+  kimiPluginInstallSuccess: "El plugin se exportó y el comando de instalación se copió. Pégalo en Kimi Code, acepta el aviso de confianza y ejecuta /reload.",
+  kimiPluginCliMissing: "El plugin se exportó y el comando se copió, pero no se detectó Kimi Code. Comprueba que esté instalado.",
+  kimiPluginInstallFailed: "No se pudo instalar el plugin",
+  kimiPluginChecking: "Comprobando...",
+  aiProvider: "Proveedor",
+  aiModel: "Modelo",
+  aiBaseUrl: "URL base",
+  aiApiKey: "Clave API",
+  aiQuickSummary: "Resumir",
+  aiQuickPolish: "Mejorar",
+  aiQuickOrganize: "Organizar",
+  aiQuickContinue: "Continuar",
+  copySelection: "Copiar",
+  cutSelection: "Cortar",
+  paste: "Pegar",
+  bold: "Negrita",
+  italic: "Cursiva",
+  inlineCode: "Código en línea",
+  aiSelection: "Selección con IA",
+  aiAddSelectionBackground: "Añadir al contexto de IA",
+  aiPolishSelection: "Mejorar selección con IA",
+  aiSummarySelection: "Resumir selección con IA",
+  aiSearchSelection: "Buscar selección con IA",
+  aiPromptPolishSelection: "Mejora únicamente el texto seleccionado a continuación, conservando su significado:",
+  aiPromptSummarySelection: "Resume únicamente el texto seleccionado a continuación y extrae los puntos clave:",
+  aiPromptSearchSelection: "Busca información sobre el texto seleccionado a continuación: explica los conceptos relacionados, añade contexto y enumera palabras clave que merezca la pena investigar:",
+  aiPlaceholder: "Pide a la IA que resuma, mejore u organice esta nota",
+  aiSend: "Enviar",
+  aiBackgroundTitle: "Contexto de IA",
+  aiBackgroundAdded: "Añadido al contexto de IA",
+  aiBackgroundDuplicate: "Este texto ya está en el contexto de IA",
+  aiBackgroundTooMany: "El contexto de IA admite hasta 8 fragmentos",
+  aiBackgroundTooLarge: "El contexto de IA no puede superar los 24.000 caracteres",
+  aiRemoveBackgroundTitle: "Quitar del contexto",
+  aiAttachTitle: "Añadir imágenes o archivos",
+  aiRemoveAttachmentTitle: "Quitar archivo adjunto",
+  aiAttachmentDefaultPrompt: "Analiza estos archivos adjuntos y resume los puntos clave.",
+  aiAttachmentImage: "Imagen",
+  aiAttachmentDocument: "Archivo",
+  aiAttachmentTooLarge: "El archivo adjunto es demasiado grande",
+  aiAttachmentTotalTooLarge: "Los archivos adjuntos superan los 24 MB en total",
+  aiAttachmentTooMany: "Puedes añadir hasta 6 archivos adjuntos",
+  aiAttachmentUnsupported: "Este formato de archivo aún no es compatible",
+  aiAttachmentReadFailed: "No se pudo leer el archivo adjunto",
+  aiImageUnsupported: "La API actual de DeepSeek no admite imágenes. Cambia a un modelo de OpenAI o MiMo con visión, o elimina la imagen.",
+  aiDocumentUnsupported: "El modelo actual no puede leer este archivo. Usa OpenAI o adjunta un PDF, Word, Markdown, TXT u otro archivo del que se pueda extraer texto.",
+  aiThinking: "La IA está pensando...",
+  aiThinkingStatus: "La IA está pensando",
+  aiWritingDraft: "La IA está preparando los cambios",
+  aiMissingKey: "Primero añade una clave API en Configuración.",
+  aiKeySavedPlaceholder: "Guardada de forma segura; introduce una clave nueva para sustituirla",
+  aiError: "La solicitud a la IA falló",
+  aiDraftReady: "El borrador de cambios está listo",
+  aiApplyDraft: "Aplicar cambios",
+  aiDiscardDraft: "Descartar",
+  aiCopy: "Copiar resultado",
+  aiCopied: "Copiado",
+  aiApplied: "Cambios de IA aplicados",
+  aiRestartRequired: "La función de IA se actualizó, pero el proceso actual de la aplicación sigue siendo la versión anterior. Cierra MarkNote por completo y vuelve a abrir la nueva versión.",
+  aiWelcome: "Puedo resumir, mejorar, organizar o crear un borrador de esta nota para que lo revises antes de aplicarlo.",
+  aiPromptSummary: "Resume esta nota y extrae los puntos clave y las tareas.",
+  aiPromptPolish: "Mejora esta nota para que sea más clara sin cambiar su significado.",
+  aiPromptOrganize: "Organiza esta nota con encabezados y una jerarquía claros, y devuelve un borrador Markdown completo.",
+  aiPromptContinue: "Continúa esta nota con el mismo estilo y devuelve un borrador Markdown completo.",
+  newTitle: "Nueva nota",
+  openTitle: "Elegir carpeta de la biblioteca",
+  saveTitle: "Guardar archivo Markdown",
+  closeHelpTitle: "Cerrar la guía y volver a la nota anterior",
+  helpTitle: "Abrir la guía README",
+  viewModeTitle: "Cambiar modo de vista",
+  themeTitle: "Cambiar tema",
+  settingsTitle: "Abrir configuración",
+  edited: "editado",
+  headings: "encabezados",
+  noHeading: "No hay ningún encabezado seleccionado",
+  emptyOutline: "Añade encabezados #, ## o ### para crear un esquema.",
+  lines: "líneas",
+  words: "palabras",
+  characters: "caracteres",
+  untitled: "Sin título.md",
+  untitledHeading: "Nota sin título",
+  startWriting: "Empieza a escribir aquí.",
+  unsavedTitle: "Cambios sin guardar",
+  unsavedMessage: "Esta nota tiene cambios sin guardar.",
+  unsavedDetail: "¿Quieres guardar los cambios antes de continuar?",
+  saveChanges: "Guardar",
+  discardChanges: "No guardar",
+  cancel: "Cancelar",
+  externalChangedTitle: "La nota cambió fuera de MarkNote",
+  externalChangedMessage: "Codex u otro programa modificó esta nota mientras la editabas.",
+  externalChangedDetail: "Puedes cargar la versión del disco o guardar tus cambios como una copia en conflicto y conservar ambas versiones.",
+  reloadExternal: "Cargar versión del disco",
+  keepBothExternal: "Conservar ambas versiones",
+  decideExternalLater: "Decidir más tarde",
+  externalConflictPending: "Resuelve el conflicto de cambios externos antes de guardar",
+  conflictCopySaved: "Tus cambios se guardaron como una copia en conflicto",
+  saveSuccess: "Guardado",
+  saveAsSuccess: "Guardado como",
+  exportSuccess: "PDF exportado",
+  deleteSuccess: "Archivo movido a la papelera",
+  draftSaved: "Borrador protegido",
+  saving: "Guardando...",
+  saved: "Guardado",
+  dirtyStatus: "Cambios sin guardar",
+  exportPdfUnavailable: "La exportación a PDF está disponible en la aplicación de escritorio",
+  showUnavailable: "Primero guarda esta nota como archivo local",
+  deleteUnavailable: "Primero guarda esta nota como archivo local",
+  deleteTitle: "Eliminar archivo",
+  deleteMessage: "¿Mover el archivo actual a la papelera?",
+  deleteDetail: "El contenido seguirá abierto en el editor, pero el archivo se moverá de su ubicación actual a la papelera.",
+  deleteConfirm: "Mover a la papelera",
+  restoreDraftTitle: "Recuperar borrador",
+  restoreDraftMessage: "Es posible que tu última edición no se haya guardado.",
+  restoreDraftDetail: "¿Quieres restaurar el borrador guardado automáticamente?",
+  restoreDraft: "Restaurar borrador",
+  discardDraft: "Descartar borrador"
+};
+
 const preferenceKey = "marknote.preferences.v1";
 const recentFilesKey = "marknote.recentFiles.v1";
 const draftKey = "marknote.autosavedDraft.v1";
@@ -590,7 +785,7 @@ const platform = window.marknote?.platform || "browser";
 const isMac = platform === "darwin" || navigator.platform.toLowerCase().includes("mac");
 const themes = ["light", "dark", "paper", "forest", "ocean", "rose", "orbit"];
 const viewModes = ["wysiwyg", "edit", "preview", "reading"];
-const languages = ["zh", "en", "ja"];
+const languages = ["zh", "en", "ja", "es"];
 const aiProviders = ["openai", "deepseek", "mimo", "kimi"];
 const aiAttachmentLimits = {
   maxCount: 6,
@@ -644,12 +839,6 @@ const defaultAiSettings = {
     deepseek: "https://api.deepseek.com",
     mimo: "https://api.mimo-v2.com/v1",
     kimi: "https://api.moonshot.cn/v1"
-  },
-  apiKeys: {
-    openai: "",
-    deepseek: "",
-    mimo: "",
-    kimi: ""
   }
 };
 
@@ -1516,17 +1705,16 @@ function loadAiSettings() {
         ...defaultAiSettings.baseUrls,
         ...(saved.baseUrls || {})
       },
-      apiKeys: {
-        ...defaultAiSettings.apiKeys,
-        ...(saved.apiKeys || {})
-      }
+      keyConfigured: Object.fromEntries(aiProviders.map((name) => [name, false])),
+      legacyApiKeys: saved.apiKeys || {}
     };
   } catch {
     return {
       provider: defaultAiSettings.provider,
       models: { ...defaultAiSettings.models },
       baseUrls: { ...defaultAiSettings.baseUrls },
-      apiKeys: { ...defaultAiSettings.apiKeys }
+      keyConfigured: Object.fromEntries(aiProviders.map((name) => [name, false])),
+      legacyApiKeys: {}
     };
   }
 }
@@ -1537,7 +1725,8 @@ function savePreferences() {
 }
 
 function saveAiSettings() {
-  localStorage.setItem(aiSettingsKey, JSON.stringify(state.aiSettings));
+  const { keyConfigured, legacyApiKeys, ...settings } = state.aiSettings;
+  localStorage.setItem(aiSettingsKey, JSON.stringify(settings));
 }
 
 function loadCloudSettings() {
@@ -1808,6 +1997,29 @@ async function refreshLibrary(options = {}) {
   }
 }
 
+async function refreshChangedLibrary(payload = {}) {
+  if (payload.unknownPath || !payload.paths?.length || !window.marknote?.refreshLibraryPaths) {
+    return refreshLibrary({ selectCurrent: false, skipDirtyCheck: true, preserveDraft: true, preserveSelection: true });
+  }
+
+  const result = await window.marknote.refreshLibraryPaths({
+    rootPath: state.library.rootPath,
+    paths: payload.paths
+  });
+  if (result?.full) {
+    setLibrarySnapshot(result);
+  } else {
+    const notes = new Map(state.library.notes.map((note) => [note.id, note]));
+    for (const removedPath of result?.removedPaths || []) notes.delete(removedPath);
+    for (const note of result?.notes || []) notes.set(note.id || note.relativePath, note);
+    setLibraryNotes([...notes.values()]);
+    state.library.folders = [...new Set((result?.folders || []).map(normalizeLibraryFolderPath).filter(Boolean))];
+  }
+  saveLibrarySettings();
+  render();
+  return true;
+}
+
 async function selectLibraryNote(noteId, options = {}) {
   if (!noteId) return false;
   if (!options.skipDirtyCheck && !(await confirmIfDirty())) return false;
@@ -1943,12 +2155,7 @@ async function handleLibraryExternalChange(payload = {}) {
   const selectedId = state.library.selectedId;
   const before = libraryNoteById(selectedId);
   const wasDirty = state.markdown !== state.savedMarkdown;
-  await refreshLibrary({
-    selectCurrent: false,
-    skipDirtyCheck: true,
-    preserveDraft: true,
-    preserveSelection: true
-  });
+  await refreshChangedLibrary(payload);
   const after = libraryNoteById(selectedId);
   const selectedChanged = Boolean(selectedId) && (
     Boolean(before) !== Boolean(after)
@@ -2283,8 +2490,8 @@ function currentAiModel() {
   return state.aiSettings.models[provider] || defaultAiSettings.models[provider];
 }
 
-function currentAiKey() {
-  return state.aiSettings.apiKeys[currentAiProvider()] || "";
+function currentAiKeyConfigured() {
+  return Boolean(state.aiSettings.keyConfigured?.[currentAiProvider()]);
 }
 
 function currentAiBaseUrl() {
@@ -2305,8 +2512,26 @@ function setAiModel(model) {
   renderAiPanel();
 }
 
-function setAiKey(apiKey) {
-  state.aiSettings.apiKeys[currentAiProvider()] = apiKey.trim();
+async function setAiKey(apiKey) {
+  const value = apiKey.trim();
+  if (!value || !window.marknote?.saveAiKey) return;
+  const provider = currentAiProvider();
+  await window.marknote.saveAiKey(provider, value);
+  state.aiSettings.keyConfigured[provider] = true;
+  elements.aiApiKeyInput.value = "";
+  renderAiPanel();
+}
+
+async function initAiSecrets() {
+  if (!window.marknote?.aiKeyStatus) return;
+  const legacyApiKeys = state.aiSettings.legacyApiKeys || {};
+  for (const provider of aiProviders) {
+    const legacyKey = String(legacyApiKeys[provider] || "").trim();
+    if (legacyKey) await window.marknote.saveAiKey(provider, legacyKey);
+    const status = await window.marknote.aiKeyStatus(provider);
+    state.aiSettings.keyConfigured[provider] = Boolean(status?.configured);
+  }
+  state.aiSettings.legacyApiKeys = {};
   saveAiSettings();
   renderAiPanel();
 }
@@ -2744,7 +2969,8 @@ function renderAiPanel() {
   renderAiModelComboList(modelOptions, model);
   elements.aiBaseUrlInput.value = currentAiBaseUrl();
   elements.aiBaseUrlInput.disabled = state.aiLoading;
-  elements.aiApiKeyInput.value = currentAiKey();
+  if (document.activeElement !== elements.aiApiKeyInput) elements.aiApiKeyInput.value = "";
+  elements.aiApiKeyInput.placeholder = currentAiKeyConfigured() ? t("aiKeySavedPlaceholder") : "API Key";
   elements.aiModelBadge.textContent = `${aiProviderLabels[currentAiProvider()] || "AI"} · ${currentAiModel()}`;
   elements.aiSendButton.disabled = state.aiLoading;
   elements.aiInput.disabled = state.aiLoading;
@@ -2861,7 +3087,7 @@ async function sendAiMessage(instruction) {
     return;
   }
 
-  if (!currentAiKey()) {
+  if (!currentAiKeyConfigured()) {
     state.aiMessages.push(createAiMessage("error", t("aiMissingKey")));
     renderAiPanel();
     return;
@@ -2896,7 +3122,6 @@ async function sendAiMessage(instruction) {
           provider: currentAiProvider(),
           model: currentAiModel(),
           baseUrl: currentAiBaseUrl(),
-          apiKey: currentAiKey(),
           instruction: trimmed,
           markdown: state.markdown,
           fileName: state.fileName,
@@ -2929,7 +3154,6 @@ async function sendAiMessage(instruction) {
       provider: currentAiProvider(),
       model: currentAiModel(),
       baseUrl: currentAiBaseUrl(),
-      apiKey: currentAiKey(),
       instruction: trimmed,
       markdown: state.markdown,
       fileName: state.fileName,
@@ -5607,6 +5831,13 @@ function saveStatusText(isDirty) {
 }
 
 function applyLanguage() {
+  document.documentElement.lang = {
+    zh: "zh-CN",
+    en: "en",
+    ja: "ja",
+    es: "es"
+  }[state.preferences.language] || "en";
+
   document.querySelectorAll("[data-i18n]").forEach((node) => {
     node.textContent = t(node.dataset.i18n);
   });
@@ -6904,7 +7135,7 @@ function bindEvents() {
     setAiBaseUrl(event.target.value);
   });
   elements.aiApiKeyInput.addEventListener("change", (event) => {
-    setAiKey(event.target.value);
+    setAiKey(event.target.value).catch((error) => showToast(cleanIpcError(error)));
   });
   elements.helpButton.addEventListener("click", openHelp);
 
@@ -7009,6 +7240,7 @@ async function boot() {
   elements.editor.value = state.markdown;
   bindEvents();
   render();
+  await initAiSecrets().catch((error) => showToast(cleanIpcError(error)));
   if (state.library.rootPath) {
     await refreshLibrary({ selectCurrent: true, skipDirtyCheck: true, preserveDraft: true, skipProgressSave: true });
   }

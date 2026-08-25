@@ -1,6 +1,8 @@
 const { app, BrowserWindow, clipboard, dialog, ipcMain, safeStorage, shell } = require("electron");
 const path = require("node:path");
 const fs = require("node:fs/promises");
+const { pathToFileURL } = require("node:url");
+const { atomicWriteFile } = require("./atomic-file.cjs");
 const {
   buildAiAttachmentPrompt,
   buildAiUserContent,
@@ -10,6 +12,18 @@ const {
 const { buildAiBackgroundPrompt } = require("./ai-backgrounds.cjs");
 const { extractPartialJsonStringField, normalizeAiContent } = require("./ai-response.cjs");
 const { createLibraryWatcher, writeBridgeConfig } = require("./library-bridge.cjs");
+const {
+  isMarkdownFile,
+  libraryNoteFromContent,
+  normalizeLibraryFolderPath,
+  normalizeLibraryRelativePath,
+  refreshLibraryPaths,
+  resolveLibraryFolderPath,
+  resolveLibraryPath,
+  sanitizeLibraryFileName,
+  scanLibrary
+} = require("./library-index.cjs");
+const { clearSecret, loadSecret, saveSecret, secretStatus } = require("./secure-secrets.cjs");
 const {
   clearGitHubToken,
   githubTokenStatus,
@@ -30,7 +44,16 @@ const {
 let isQuitting = false;
 let activeLibraryRoot = "";
 let libraryWatcher = null;
+let mainWindow = null;
 const appIconPath = path.join(__dirname, "../build/icon.png");
+const appEntryUrl = pathToFileURL(path.join(__dirname, "../app/index.html")).href;
+const aiSecretName = (provider) => `ai-${aiProviders.includes(provider) ? provider : "openai"}-key`;
+
+function assertTrustedIpc(event) {
+  if (!mainWindow || event.sender !== mainWindow.webContents || event.senderFrame?.url !== appEntryUrl) {
+    throw new Error("Blocked IPC request from an untrusted renderer");
+  }
+}
 
 function pluginHostOptions() {
   return {
@@ -76,9 +99,25 @@ function createWindow() {
     webPreferences: {
       preload: path.join(__dirname, "preload.cjs"),
       contextIsolation: true,
-      nodeIntegration: false
+      nodeIntegration: false,
+      sandbox: true,
+      webSecurity: true
     }
   });
+  mainWindow = win;
+
+  win.webContents.setWindowOpenHandler(({ url }) => {
+    if (/^https?:\/\//i.test(url)) shell.openExternal(url);
+    return { action: "deny" };
+  });
+  win.webContents.on("will-navigate", (event, url) => {
+    if (url === appEntryUrl) return;
+    event.preventDefault();
+    if (/^https?:\/\//i.test(url)) shell.openExternal(url);
+  });
+  win.webContents.on("will-attach-webview", (event) => event.preventDefault());
+  win.webContents.session.setPermissionCheckHandler(() => false);
+  win.webContents.session.setPermissionRequestHandler((_webContents, _permission, callback) => callback(false));
 
   win.on("close", (event) => {
     if (isQuitting || win.isCloseConfirmed) {
@@ -87,6 +126,9 @@ function createWindow() {
 
     event.preventDefault();
     win.webContents.send("app:request-close");
+  });
+  win.on("closed", () => {
+    if (mainWindow === win) mainWindow = null;
   });
 
   win.loadFile(path.join(__dirname, "../app/index.html"));
@@ -146,6 +188,12 @@ ipcMain.handle("library:scan", async (_event, payload) => {
   };
 });
 
+ipcMain.handle("library:refresh-paths", async (_event, payload) => {
+  const rootPath = payload?.rootPath;
+  if (!rootPath) return { ok: false, error: "missing-root", notes: [], folders: [] };
+  return { ok: true, rootPath, ...await refreshLibraryPaths(rootPath, payload?.paths || []) };
+});
+
 ipcMain.handle("library:create-folder", async (_event, payload) => {
   const rootPath = payload?.rootPath;
   const folder = normalizeLibraryFolderPath(payload?.folder);
@@ -184,8 +232,7 @@ ipcMain.handle("library:save", async (_event, payload) => {
   const content = payload?.content ?? "";
   const filePath = resolveLibraryPath(rootPath, relativePath);
 
-  await fs.mkdir(path.dirname(filePath), { recursive: true });
-  await fs.writeFile(filePath, content, "utf8");
+  await atomicWriteFile(filePath, content, "utf8");
 
   const stat = await fs.stat(filePath);
   return libraryNoteFromContent(rootPath, relativePath, content, stat);
@@ -285,8 +332,7 @@ ipcMain.handle("github:sync", async (event, payload) => {
     localNotes: snapshot.notes.map((note) => ({ path: note.relativePath, content: note.content })),
     writeLocal: async (relativePath, content) => {
       const filePath = resolveLibraryPath(rootPath, relativePath);
-      await fs.mkdir(path.dirname(filePath), { recursive: true });
-      await fs.writeFile(filePath, content, "utf8");
+      await atomicWriteFile(filePath, content, "utf8");
     },
     deleteLocal: async (relativePath) => {
       const filePath = resolveLibraryPath(rootPath, relativePath);
@@ -365,134 +411,6 @@ ipcMain.handle("kimi-plugin:open-folder", async () => {
   return { ok: true };
 });
 
-async function scanLibrary(rootPath) {
-  if (!String(rootPath || "").trim()) {
-    throw new Error("Missing library root");
-  }
-
-  const root = path.resolve(String(rootPath));
-  const entries = [];
-  const folders = new Set();
-
-  async function walk(directory) {
-    const children = await fs.readdir(directory, { withFileTypes: true });
-    for (const child of children) {
-      if (child.name.startsWith(".") || child.name === "node_modules") continue;
-
-      const childPath = path.join(directory, child.name);
-      if (child.isDirectory()) {
-        folders.add(toPosixPath(path.relative(root, childPath)));
-        await walk(childPath);
-        continue;
-      }
-
-      if (!child.isFile() || !isMarkdownFile(child.name)) continue;
-
-      const relativePath = toPosixPath(path.relative(root, childPath));
-      const content = await fs.readFile(childPath, "utf8").catch(() => "");
-      const stat = await fs.stat(childPath);
-      entries.push(libraryNoteFromContent(root, relativePath, content, stat));
-    }
-  }
-
-  await walk(root);
-  return {
-    notes: entries.sort((a, b) => {
-      if (a.folder !== b.folder) return a.folder.localeCompare(b.folder, "zh-Hans-CN");
-      return a.title.localeCompare(b.title, "zh-Hans-CN");
-    }),
-    folders: [...folders].sort((a, b) => a.localeCompare(b, "zh-Hans-CN"))
-  };
-}
-
-function libraryNoteFromContent(rootPath, relativePath, content, stat) {
-  const normalized = normalizeLibraryRelativePath(relativePath);
-  return {
-    id: normalized,
-    title: path.basename(normalized, path.extname(normalized)),
-    content,
-    relativePath: normalized,
-    folder: folderFromRelativePath(normalized),
-    updatedAt: stat?.mtime ? stat.mtime.toISOString() : new Date().toISOString(),
-    syncState: "synced",
-    filePath: resolveLibraryPath(rootPath, normalized)
-  };
-}
-
-function resolveLibraryPath(rootPath, relativePath) {
-  if (!String(rootPath || "").trim()) {
-    throw new Error("Missing library root");
-  }
-
-  const root = path.resolve(String(rootPath));
-  const normalized = normalizeLibraryRelativePath(relativePath);
-  if (!normalized) {
-    throw new Error("Invalid library path");
-  }
-
-  const filePath = path.resolve(root, normalized);
-  if (filePath !== root && !filePath.startsWith(root + path.sep)) {
-    throw new Error("Path is outside the library folder");
-  }
-  return filePath;
-}
-
-function resolveLibraryFolderPath(rootPath, relativePath) {
-  if (!String(rootPath || "").trim()) {
-    throw new Error("Missing library root");
-  }
-
-  const root = path.resolve(String(rootPath));
-  const normalized = normalizeLibraryFolderPath(relativePath);
-  if (!normalized) {
-    throw new Error("Invalid library folder");
-  }
-
-  const folderPath = path.resolve(root, normalized);
-  if (folderPath !== root && !folderPath.startsWith(root + path.sep)) {
-    throw new Error("Path is outside the library folder");
-  }
-  return folderPath;
-}
-
-function normalizeLibraryRelativePath(value) {
-  const normalized = toPosixPath(String(value || ""))
-    .split("/")
-    .filter((part) => part && part !== "." && part !== "..")
-    .map((part) => sanitizeLibraryFileName(part))
-    .join("/");
-  if (!normalized) return "";
-
-  const ext = path.posix.extname(normalized).toLowerCase();
-  if (!ext) return `${normalized}.md`;
-  return isMarkdownFile(normalized) ? normalized : `${normalized}.md`;
-}
-
-function normalizeLibraryFolderPath(value) {
-  return toPosixPath(String(value || ""))
-    .split("/")
-    .filter((part) => part && part !== "." && part !== "..")
-    .map((part) => String(part).replace(/[\\/:*?"<>|]/g, "-").replace(/\s+/g, " ").trim())
-    .filter(Boolean)
-    .join("/");
-}
-
-function sanitizeLibraryFileName(value) {
-  return String(value || "Untitled.md")
-    .replace(/[\\/:*?"<>|]/g, "-")
-    .replace(/\s+/g, " ")
-    .trim() || "Untitled.md";
-}
-
-function folderFromRelativePath(relativePath) {
-  const folder = toPosixPath(path.posix.dirname(relativePath));
-  return folder === "." ? "" : folder;
-}
-
-function isMarkdownFile(filePath) {
-  return [".md", ".markdown"].includes(path.extname(String(filePath)).toLowerCase());
-}
-
 async function uniqueLibraryRelativePath(rootPath, preferredRelativePath) {
   const parsed = path.posix.parse(normalizeLibraryRelativePath(preferredRelativePath));
   let candidate = `${parsed.dir ? `${parsed.dir}/` : ""}${parsed.name}${parsed.ext || ".md"}`;
@@ -507,10 +425,6 @@ async function uniqueLibraryRelativePath(rootPath, preferredRelativePath) {
       return candidate;
     }
   }
-}
-
-function toPosixPath(value) {
-  return String(value || "").split(path.sep).join("/");
 }
 
 function titleFromMarkdown(markdown = "") {
@@ -549,7 +463,9 @@ ipcMain.handle("file:open", async () => {
   };
 });
 
-ipcMain.handle("file:open-path", async (_event, filePath) => {
+ipcMain.handle("file:open-path", async (event, filePath) => {
+  assertTrustedIpc(event);
+  if (!isMarkdownFile(filePath)) throw new Error("Only Markdown files can be opened");
   const content = await fs.readFile(filePath, "utf8");
   return {
     filePath,
@@ -576,7 +492,7 @@ ipcMain.handle("file:save", async (_event, payload) => {
     filePath = result.filePath;
   }
 
-  await fs.writeFile(filePath, content, "utf8");
+  await atomicWriteFile(filePath, content, "utf8");
   return {
     filePath,
     fileName: path.basename(filePath)
@@ -596,7 +512,7 @@ ipcMain.handle("file:save-as", async (_event, payload) => {
     return null;
   }
 
-  await fs.writeFile(result.filePath, content, "utf8");
+  await atomicWriteFile(result.filePath, content, "utf8");
   return {
     filePath: result.filePath,
     fileName: path.basename(result.filePath)
@@ -675,7 +591,9 @@ ipcMain.handle("file:export-pdf", async (_event, payload) => {
     height: 1200,
     webPreferences: {
       contextIsolation: true,
-      nodeIntegration: false
+      nodeIntegration: false,
+      sandbox: true,
+      webSecurity: true
     }
   });
 
@@ -750,12 +668,31 @@ ipcMain.handle("ai:choose-attachments", async (event) => {
   return prepareAiAttachmentPaths(result.filePaths);
 });
 
-ipcMain.handle("ai:prepare-attachments", async (_event, filePaths) => {
+ipcMain.handle("ai:prepare-attachments", async (event, filePaths) => {
+  assertTrustedIpc(event);
   return prepareAiAttachmentPaths(filePaths);
 });
 
-ipcMain.handle("ai:complete", async (_event, payload) => {
-  const request = buildAiRequest(payload);
+ipcMain.handle("ai:key-status", async (event, provider) => {
+  assertTrustedIpc(event);
+  return secretStatus(app.getPath("userData"), safeStorage, aiSecretName(provider));
+});
+
+ipcMain.handle("ai:key-save", async (event, provider, apiKey) => {
+  assertTrustedIpc(event);
+  return saveSecret(app.getPath("userData"), safeStorage, aiSecretName(provider), apiKey);
+});
+
+ipcMain.handle("ai:key-clear", async (event, provider) => {
+  assertTrustedIpc(event);
+  return clearSecret(app.getPath("userData"), aiSecretName(provider));
+});
+
+ipcMain.handle("ai:complete", async (event, payload) => {
+  assertTrustedIpc(event);
+  const provider = aiProviders.includes(payload?.provider) ? payload.provider : "openai";
+  const apiKey = await loadSecret(app.getPath("userData"), safeStorage, aiSecretName(provider));
+  const request = buildAiRequest(payload, apiKey);
   if (!request.apiKey) {
     return { ok: false, error: "missing-key" };
   }
@@ -779,9 +716,12 @@ ipcMain.handle("ai:complete", async (_event, payload) => {
 });
 
 ipcMain.handle("ai:stream", async (event, message) => {
+  assertTrustedIpc(event);
   const requestId = message?.requestId;
   const payload = message?.payload || {};
-  const request = buildAiRequest(payload);
+  const provider = aiProviders.includes(payload?.provider) ? payload.provider : "openai";
+  const apiKey = await loadSecret(app.getPath("userData"), safeStorage, aiSecretName(provider));
+  const request = buildAiRequest(payload, apiKey);
 
   if (!requestId) return;
 
@@ -839,9 +779,9 @@ const defaultAiBaseUrls = {
   kimi: "https://api.moonshot.cn/v1"
 };
 
-function buildAiRequest(payload) {
+function buildAiRequest(payload, apiKey = "") {
   const provider = aiProviders.includes(payload?.provider) ? payload.provider : "openai";
-  const apiKey = String(payload?.apiKey || "").trim();
+  apiKey = String(apiKey || "").trim();
   const model = String(payload?.model || "").trim() || defaultAiModels[provider];
   const baseUrl = normalizeChatBaseUrl(payload?.baseUrl, provider);
   const instruction = String(payload?.instruction || "");

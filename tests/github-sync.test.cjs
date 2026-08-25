@@ -24,12 +24,13 @@ function fakeClient(initial = {}) {
         if (rest.includes("/")) {
           directories.add(`${folder}/${rest.split("/")[0]}`);
         } else {
-          direct.push({ type: "file", path: filePath });
+          direct.push({ type: "file", path: filePath, sha: files.get(filePath).sha });
         }
       }
       return [...directories].map((entry) => ({ type: "dir", path: entry })).concat(direct);
     },
     async readFile(filePath) {
+      this.readFileCalls = (this.readFileCalls || 0) + 1;
       return { ...files.get(filePath) };
     },
     async writeFile(filePath, content) {
@@ -76,6 +77,28 @@ test("uploads local notes and downloads remote notes on first sync", async () =>
   assert.equal(result.summary.uploaded, 1);
   assert.equal(result.summary.downloaded, 1);
   assert.deepEqual(Object.keys(result.baseline.notes).sort(), ["local.md", "remote.md"]);
+});
+
+test("uses version 2 hashes to skip downloading unchanged remote content", async () => {
+  const { contentHash, syncNotesWithGitHub } = await syncModulePromise;
+  const content = "# Unchanged";
+  const client = fakeClient({ "notes/same.md": { content, sha: "same-1" } });
+  const local = localStore({ "same.md": content });
+  const result = await syncNotesWithGitHub({
+    client,
+    localNotes: local.notes(),
+    baseline: {
+      version: 2,
+      notes: { "same.md": { contentHash: await contentHash(content), remoteSha: "same-1" } }
+    },
+    writeLocal: local.write,
+    deleteLocal: local.remove
+  });
+
+  assert.equal(client.readFileCalls || 0, 0);
+  assert.equal(result.baseline.version, 2);
+  assert.equal("content" in result.baseline.notes["same.md"], false);
+  assert.equal(result.summary.uploaded + result.summary.downloaded, 0);
 });
 
 test("keeps both versions when local and remote changed", async () => {

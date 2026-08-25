@@ -1,6 +1,7 @@
 const fs = require("node:fs");
 const fsp = require("node:fs/promises");
 const path = require("node:path");
+const { atomicWriteFile } = require("./atomic-file.cjs");
 
 const bridgeFileName = "codex-bridge.json";
 
@@ -9,20 +10,13 @@ async function writeBridgeConfig(userDataPath, rootPath) {
   const stat = await fsp.stat(libraryRoot);
   if (!stat.isDirectory()) throw new Error("MarkNote library root must be a directory");
 
-  await fsp.mkdir(userDataPath, { recursive: true });
   const configPath = path.join(userDataPath, bridgeFileName);
-  const temporaryPath = `${configPath}.${process.pid}.tmp`;
   const config = {
     schemaVersion: 1,
     libraryRoot,
     updatedAt: new Date().toISOString()
   };
-  try {
-    await fsp.writeFile(temporaryPath, `${JSON.stringify(config, null, 2)}\n`, "utf8");
-    await fsp.rename(temporaryPath, configPath);
-  } finally {
-    await fsp.rm(temporaryPath, { force: true }).catch(() => {});
-  }
+  await atomicWriteFile(configPath, `${JSON.stringify(config, null, 2)}\n`, "utf8");
   return { configPath, ...config };
 }
 
@@ -44,7 +38,7 @@ function createLibraryWatcher(rootPath, onChange, options = {}) {
     onChange(payload);
   };
 
-  const watcher = fs.watch(root, { recursive: true }, (_eventType, filename) => {
+  const schedule = (filename) => {
     if (!filename) {
       unknownPath = true;
     } else {
@@ -53,16 +47,41 @@ function createLibraryWatcher(rootPath, onChange, options = {}) {
     }
     if (timer) clearTimeout(timer);
     timer = setTimeout(flush, debounceMs);
-  });
-  watcher.on("error", (error) => options.onError?.(error));
-  watcher.unref?.();
+  };
+
+  let watcher;
+  let polling = false;
+  const pollListener = (current, previous) => {
+    if (current.mtimeMs !== previous.mtimeMs || current.size !== previous.size) schedule();
+  };
+  const startPolling = (error) => {
+    if (polling || closed) return;
+    polling = true;
+    watcher?.close();
+    watcher = null;
+    fs.watchFile(root, { interval: options.pollIntervalMs ?? 500, persistent: false }, pollListener);
+    schedule();
+    options.onFallback?.(error);
+  };
+  try {
+    watcher = fs.watch(root, { recursive: true }, (_eventType, filename) => schedule(filename));
+    watcher.on("error", (error) => {
+      if (["EMFILE", "ENOSPC", "ERR_FEATURE_UNAVAILABLE_ON_PLATFORM"].includes(error?.code)) startPolling(error);
+      else options.onError?.(error);
+    });
+    watcher.unref?.();
+  } catch (error) {
+    if (!["EMFILE", "ENOSPC", "ERR_FEATURE_UNAVAILABLE_ON_PLATFORM"].includes(error?.code)) throw error;
+    startPolling(error);
+  }
 
   return {
     close() {
       if (closed) return;
       closed = true;
       if (timer) clearTimeout(timer);
-      watcher.close();
+      if (polling) fs.unwatchFile(root, pollListener);
+      else watcher?.close();
     }
   };
 }

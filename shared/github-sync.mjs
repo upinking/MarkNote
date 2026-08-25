@@ -141,10 +141,11 @@ export function createGitHubClient({ settings, token, fetchImpl = globalThis.fet
   };
 }
 
-export async function readRemoteNotes(client) {
+export async function readRemoteNotes(client, baseline = { notes: {} }) {
   await client.verifyRepository();
   const root = client.settings.remoteFolder;
   const files = [];
+  const base = new Map(Object.entries(baseline.notes || {}));
 
   async function walk(remotePath) {
     const entries = await client.listDirectory(remotePath);
@@ -152,9 +153,16 @@ export async function readRemoteNotes(client) {
       if (entry?.type === "dir") {
         await walk(entry.path);
       } else if (entry?.type === "file" && isMarkdownPath(entry.path || "")) {
-        const file = await client.readFile(entry.path);
         const localPath = root ? entry.path.slice(root.length).replace(/^\/+/, "") : entry.path;
-        if (localPath) files.push({ path: normalizeRelativePath(localPath), content: file.content, sha: file.sha });
+        if (!localPath) continue;
+        const normalizedPath = normalizeRelativePath(localPath);
+        const baseNote = base.get(normalizedPath);
+        if (entry.sha && baseNote?.contentHash && entry.sha === baseNote.remoteSha) {
+          files.push({ path: normalizedPath, content: null, sha: entry.sha, unchanged: true });
+        } else {
+          const file = await client.readFile(entry.path);
+          files.push({ path: normalizedPath, content: file.content, sha: file.sha });
+        }
       }
     }
   }
@@ -173,7 +181,7 @@ export async function syncNotesWithGitHub(options = {}) {
     throw new GitHubSyncError("同步器缺少本地文件操作。", { code: "missing-local-operations" });
   }
 
-  const remoteNotes = await readRemoteNotes(client);
+  const remoteNotes = await readRemoteNotes(client, baseline);
   const local = new Map(localNotes.map((note) => [note.path, { ...note }]));
   const remote = new Map(remoteNotes.map((note) => [note.path, { ...note }]));
   const base = new Map(Object.entries(baseline.notes || {}));
@@ -184,6 +192,13 @@ export async function syncNotesWithGitHub(options = {}) {
   const resolveConflict = typeof options.resolveConflict === "function"
     ? options.resolveConflict
     : async () => "both";
+  const hashes = new Map();
+  const hashOf = async (content) => {
+    const value = String(content || "");
+    if (!hashes.has(value)) hashes.set(value, contentHash(value));
+    return hashes.get(value);
+  };
+  const baselineHash = (note) => note?.contentHash ? Promise.resolve(String(note.contentHash)) : hashOf(note?.content || "");
 
   const remotePathFor = (localPath) => client.settings.remoteFolder
     ? `${client.settings.remoteFolder}/${localPath}`
@@ -263,7 +278,7 @@ export async function syncNotesWithGitHub(options = {}) {
     }
 
     if (localNote && remoteNote) {
-      const localChanged = localNote.content !== String(baseNote.content || "");
+      const localChanged = await hashOf(localNote.content) !== await baselineHash(baseNote);
       const remoteChanged = remoteNote.sha !== String(baseNote.remoteSha || "");
       if (localChanged && remoteChanged && localNote.content !== remoteNote.content) {
         const reason = "both-changed";
@@ -308,7 +323,7 @@ export async function syncNotesWithGitHub(options = {}) {
     }
 
     if (localNote && !remoteNote) {
-      const localChanged = localNote.content !== String(baseNote.content || "");
+      const localChanged = await hashOf(localNote.content) !== await baselineHash(baseNote);
       if (localChanged) {
         const reason = "remote-deleted-local-changed";
         const choice = await askConflict({ path, reason, localContent: localNote.content, remoteContent: null });
@@ -328,21 +343,38 @@ export async function syncNotesWithGitHub(options = {}) {
     }
   }
 
-  const nextBaseline = { version: 1, notes: {}, syncedAt: new Date().toISOString() };
+  const nextBaseline = { version: 2, notes: {}, syncedAt: new Date().toISOString() };
   for (const [path, localNote] of local) {
     const remoteNote = remote.get(path);
-    if (!remoteNote || localNote.content !== remoteNote.content || !remoteNote.sha) continue;
-    nextBaseline.notes[path] = { content: localNote.content, remoteSha: remoteNote.sha };
+    if (!remoteNote?.sha) continue;
+    const localContentHash = await hashOf(localNote.content);
+    const baseNote = base.get(path);
+    const unchangedRemoteMatches = remoteNote.unchanged
+      && baseNote?.remoteSha === remoteNote.sha
+      && localContentHash === await baselineHash(baseNote);
+    if (!unchangedRemoteMatches && localNote.content !== remoteNote.content) continue;
+    nextBaseline.notes[path] = { contentHash: localContentHash, remoteSha: remoteNote.sha };
   }
 
   return { summary, baseline: nextBaseline, notes: [...local.values()].sort((a, b) => a.path.localeCompare(b.path, "zh-Hans-CN")) };
 }
 
 function normalizeBaseline(value) {
-  if (!value || value.version !== 1 || typeof value.notes !== "object" || Array.isArray(value.notes)) {
-    return { version: 1, notes: {} };
+  if (!value || ![1, 2].includes(value.version) || typeof value.notes !== "object" || Array.isArray(value.notes)) {
+    return { version: 2, notes: {} };
   }
   return value;
+}
+
+export async function contentHash(content) {
+  const bytes = new TextEncoder().encode(String(content || ""));
+  if (globalThis.crypto?.subtle) {
+    const digest = await globalThis.crypto.subtle.digest("SHA-256", bytes);
+    return [...new Uint8Array(digest)].map((value) => value.toString(16).padStart(2, "0")).join("");
+  }
+  let hash = 2166136261;
+  for (const byte of bytes) hash = Math.imul(hash ^ byte, 16777619);
+  return `fnv1a-${bytes.length}-${(hash >>> 0).toString(16).padStart(8, "0")}`;
 }
 
 function normalizeRelativePath(value, options = {}) {

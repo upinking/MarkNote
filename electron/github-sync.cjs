@@ -1,55 +1,32 @@
 const crypto = require("node:crypto");
 const fs = require("node:fs/promises");
 const path = require("node:path");
+const { atomicWriteFile } = require("./atomic-file.cjs");
+const { clearSecret, loadSecret, saveSecret, secretStatus } = require("./secure-secrets.cjs");
 
-let sessionToken = "";
 let syncModulePromise = null;
+const githubTokenName = "github-sync-token";
 
 function loadSyncModule() {
   syncModulePromise ||= import("../shared/github-sync.mjs");
   return syncModulePromise;
 }
 
-function tokenPath(userDataPath) {
-  return path.join(userDataPath, "github-sync-token.bin");
-}
-
 async function saveGitHubToken(userDataPath, safeStorage, token) {
-  const normalized = String(token || "").trim();
-  if (!normalized) throw new Error("请填写 GitHub Token。");
-  sessionToken = normalized;
-  if (!safeStorage?.isEncryptionAvailable?.()) {
-    return { saved: true, persisted: false };
-  }
-  await fs.mkdir(userDataPath, { recursive: true });
-  const encrypted = safeStorage.encryptString(normalized);
-  await fs.writeFile(tokenPath(userDataPath), encrypted, { mode: 0o600 });
-  return { saved: true, persisted: true };
+  if (!String(token || "").trim()) throw new Error("请填写 GitHub Token。");
+  return saveSecret(userDataPath, safeStorage, githubTokenName, token);
 }
 
 async function loadGitHubToken(userDataPath, safeStorage) {
-  if (sessionToken) return sessionToken;
-  if (!safeStorage?.isEncryptionAvailable?.()) return "";
-  try {
-    const encrypted = await fs.readFile(tokenPath(userDataPath));
-    sessionToken = safeStorage.decryptString(encrypted);
-    return sessionToken;
-  } catch {
-    return "";
-  }
+  return loadSecret(userDataPath, safeStorage, githubTokenName);
 }
 
 async function clearGitHubToken(userDataPath) {
-  sessionToken = "";
-  await fs.rm(tokenPath(userDataPath), { force: true });
-  return { cleared: true };
+  return clearSecret(userDataPath, githubTokenName);
 }
 
 async function githubTokenStatus(userDataPath, safeStorage) {
-  return {
-    configured: Boolean(await loadGitHubToken(userDataPath, safeStorage)),
-    persistent: Boolean(safeStorage?.isEncryptionAvailable?.())
-  };
+  return secretStatus(userDataPath, safeStorage, githubTokenName);
 }
 
 function baselinePath(userDataPath, rootPath, settings) {
@@ -68,19 +45,12 @@ async function loadBaseline(filePath) {
   try {
     return JSON.parse(await fs.readFile(filePath, "utf8"));
   } catch {
-    return { version: 1, notes: {} };
+    return { version: 2, notes: {} };
   }
 }
 
 async function saveBaseline(filePath, baseline) {
-  await fs.mkdir(path.dirname(filePath), { recursive: true });
-  const temporaryPath = `${filePath}.${process.pid}.tmp`;
-  try {
-    await fs.writeFile(temporaryPath, `${JSON.stringify(baseline)}\n`, { encoding: "utf8", mode: 0o600 });
-    await fs.rename(temporaryPath, filePath);
-  } finally {
-    await fs.rm(temporaryPath, { force: true }).catch(() => {});
-  }
+  await atomicWriteFile(filePath, `${JSON.stringify(baseline)}\n`, { encoding: "utf8", mode: 0o600 });
 }
 
 async function syncDesktopLibrary(options) {

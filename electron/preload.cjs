@@ -12,6 +12,7 @@ contextBridge.exposeInMainWorld("marknote", {
   openReadme: () => ipcRenderer.invoke("file:readme"),
   chooseLibrary: () => ipcRenderer.invoke("library:choose"),
   scanLibrary: (payload) => ipcRenderer.invoke("library:scan", payload),
+  refreshLibraryPaths: (payload) => ipcRenderer.invoke("library:refresh-paths", payload),
   createLibraryFolder: (payload) => ipcRenderer.invoke("library:create-folder", payload),
   readLibraryNote: (payload) => ipcRenderer.invoke("library:read", payload),
   saveLibraryNote: (payload) => ipcRenderer.invoke("library:save", payload),
@@ -30,6 +31,9 @@ contextBridge.exposeInMainWorld("marknote", {
   openKimiPluginFolder: () => ipcRenderer.invoke("kimi-plugin:open-folder"),
   chooseAiAttachments: () => ipcRenderer.invoke("ai:choose-attachments"),
   prepareAiAttachments: (filePaths) => ipcRenderer.invoke("ai:prepare-attachments", filePaths),
+  aiKeyStatus: (provider) => ipcRenderer.invoke("ai:key-status", provider),
+  saveAiKey: (provider, apiKey) => ipcRenderer.invoke("ai:key-save", provider, apiKey),
+  clearAiKey: (provider) => ipcRenderer.invoke("ai:key-clear", provider),
   pathForFile: (file) => webUtils?.getPathForFile?.(file) || "",
   askAi: (payload) => ipcRenderer.invoke("ai:complete", payload),
   askAiStream: (payload, handlers = {}) => {

@@ -7,6 +7,7 @@ const renderer = fs.readFileSync(path.join(__dirname, "../app/renderer.js"), "ut
 const index = fs.readFileSync(path.join(__dirname, "../app/index.html"), "utf8");
 const styles = fs.readFileSync(path.join(__dirname, "../app/styles.css"), "utf8");
 const main = fs.readFileSync(path.join(__dirname, "../electron/main.cjs"), "utf8");
+const libraryIndex = fs.readFileSync(path.join(__dirname, "../electron/library-index.cjs"), "utf8");
 
 test("new notes use placeholder UI instead of saving starter text", () => {
   assert.match(renderer, /state\.markdown\s*=\s*`# \$\{t\("untitledHeading"\)\}\\n\\n`/);
@@ -41,5 +42,12 @@ test("back-to-top clears the AI composer and returns with its closing animation"
 });
 
 test("desktop library titles come from Markdown file names", () => {
-  assert.match(main, /title:\s*path\.basename\(normalized,\s*path\.extname\(normalized\)\)/);
+  assert.match(libraryIndex, /title:\s*path\.basename\(normalized,\s*path\.extname\(normalized\)\)/);
+});
+
+test("localized settings stay inside the window", () => {
+  assert.match(styles, /\.settingsPanel\s*{[^}]*position:\s*fixed/s);
+  assert.match(styles, /width:\s*min\(300px, calc\(100vw - 24px\)\)/);
+  assert.match(styles, /@media \(max-width: 1400px\) and \(min-width: 1101px\)/);
+  assert.match(styles, /\.settingSwitch > span\s*{[^}]*overflow-wrap:\s*anywhere/s);
 });
